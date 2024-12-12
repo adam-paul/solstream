@@ -1,8 +1,11 @@
 import type { NextConfig } from 'next'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
 const nextConfig: NextConfig = {
   output: 'export',
-  basePath: '/solstream', 
+  basePath: isProduction ? '/solstream' : '',
+  assetPrefix: isProduction ? '/solstream/' : '',
   images: {
     unoptimized: true,
   },
