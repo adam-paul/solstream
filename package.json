@@ -5,10 +5,11 @@
   "homepage": "https://adam-paul.github.io/solstream/",
   "scripts": {
     "dev": "next dev",
+    "clean": "rm -rf .next out",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "predeploy": "next build",
+    "predeploy": "npm run clean && next build",
     "deploy": "gh-pages -d out"
   },
   "dependencies": {
@@ -27,9 +28,13 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.20",
+    "css-loader": "^7.1.2",
     "eslint": "^9",
     "eslint-config-next": "15.1.0",
     "postcss": "^8.4.49",
+    "postcss-loader": "^8.1.1",
+    "postcss-preset-env": "^10.1.1",
+    "style-loader": "^4.0.0",
     "tailwindcss": "^3.4.16",
     "typescript": "^5"
   }
