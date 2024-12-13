@@ -29,23 +29,30 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ onClose, title }) => 
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
-      } catch (err: any) {
+      } catch (error) {
         if (mounted) {
-          setError('Could not access camera: ' + err.message);
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+          setError('Could not access camera: ' + errorMessage);
         }
       }
     };
 
     startCamera();
 
+    // Store ref values that might be needed in cleanup
+    const currentVideo = videoRef.current;
+    const currentStream = streamRef.current;
+
     return () => {
       mounted = false;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
       }
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
+      if (currentVideo) {
+        currentVideo.srcObject = null;
+      }
+      if (streamRef.current) {
+        streamRef.current = null;
       }
     };
   }, []);
