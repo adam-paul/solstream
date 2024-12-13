@@ -1,5 +1,11 @@
 import type { Metadata } from 'next'
-import '@/app/globals.css'  
+import { Inter } from 'next/font/google'
+import '@/app/globals.css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+})
 
 export const metadata: Metadata = {
   title: 'Solstream - Token-Gated Livestreaming',
@@ -12,13 +18,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <head>
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+    <html lang="en" className={inter.className}>
       <body className="font-sans">{children}</body>
     </html>
   )

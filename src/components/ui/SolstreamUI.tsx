@@ -1,7 +1,9 @@
 'use client'
 
 import React, { useState } from 'react';
+import Image from 'next/image';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
+import StreamComponent from './StreamComponent';
 
 // Mock data for demonstration
 const mockStreams = [
@@ -14,7 +16,6 @@ const mockStreams = [
     viewers: 156,
     thumbnail: "/api/placeholder/400/300"
   },
-  // Add more mock streams as needed
 ];
 
 const mockActivity = [
@@ -23,9 +24,18 @@ const mockActivity = [
   "🚀 Technical Analysis stream starting for $BONK"
 ];
 
-const SolstreamUI = () => {
-  const [sortBy, setSortBy] = useState('featured');
-  const [searchQuery, setSearchQuery] = useState('');
+const SolstreamUI: React.FC = () => {
+  const [sortBy, setSortBy] = useState<'featured' | 'newest' | 'viewers'>('featured');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState<boolean>(false);
+
+  const startStream = () => {
+    setIsStreaming(true);
+  };
+
+  const endStream = () => {
+    setIsStreaming(false);
+  };
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
@@ -42,16 +52,29 @@ const SolstreamUI = () => {
       <div className="max-w-7xl mx-auto">
         {/* New Stream Button */}
         <div className="text-center mb-8">
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg">
-            [start a new stream]
+          <button 
+            onClick={startStream}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg"
+          >
+            start a new stream
           </button>
         </div>
+
+        {/* Stream Component */}
+        {isStreaming && <StreamComponent onClose={endStream} />}
 
         {/* Featured Stream */}
         <div className="bg-gray-800 rounded-lg p-6 mb-8">
           <h2 className="text-2xl font-bold mb-4 text-yellow-400">Current Top Stream</h2>
           <div className="flex items-center space-x-4">
-            <img src="/api/placeholder/100/100" alt="Featured Stream" className="w-16 h-16 rounded-full" />
+            <div className="relative w-16 h-16">
+              <Image
+                src="/api/placeholder/100/100"
+                alt="Featured Stream"
+                fill
+                className="rounded-full object-cover"
+              />
+            </div>
             <div>
               <h3 className="text-xl">Trading Masterclass</h3>
               <p className="text-gray-400">1.2k viewers • Started 2h ago</p>
@@ -116,7 +139,14 @@ const SolstreamUI = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {mockStreams.map((stream) => (
             <div key={stream.id} className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all">
-              <img src={stream.thumbnail} alt={stream.title} className="w-full h-48 object-cover" />
+              <div className="relative w-full h-48">
+                <Image
+                  src={stream.thumbnail}
+                  alt={stream.title}
+                  fill
+                  className="object-cover"
+                />
+              </div>
               <div className="p-4">
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-semibold">{stream.title}</h3>
