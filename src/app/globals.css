@@ -1,16 +1,16 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: rgb(255 255 255); /* White */
-  --foreground: rgb(23 23 23);    /* Dark gray */
+  --background: rgb(255 255 255);
+  --foreground: rgb(23 23 23);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: rgb(12 24 36);   /* Dark theme background */
-    --foreground: rgb(250 250 250); /* Dark theme text */
+    --background: rgb(12 24 36);
+    --foreground: rgb(250 250 250);
   }
 }
 
