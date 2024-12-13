@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamComponent from './StreamComponent';
+import StreamCreationModal from './StreamCreationModal';
 
 // Mock data for demonstration
 const mockStreams = [
@@ -28,8 +29,12 @@ const SolstreamUI: React.FC = () => {
   const [sortBy, setSortBy] = useState<'featured' | 'newest' | 'viewers'>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
+  const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
+  const [streamTitle, setStreamTitle] = useState<string>('');
 
-  const startStream = () => {
+  const startStream = (title: string) => {
+    setStreamTitle(title);
+    setShowStreamModal(false);
     setIsStreaming(true);
   };
 
@@ -53,15 +58,22 @@ const SolstreamUI: React.FC = () => {
         {/* New Stream Button */}
         <div className="text-center mb-8">
           <button 
-            onClick={startStream}
+            onClick={() => setShowStreamModal(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg"
           >
             start a new stream
           </button>
         </div>
 
+        {/* Stream Creation Modal */}
+        <StreamCreationModal
+          isOpen={showStreamModal}
+          onClose={() => setShowStreamModal(false)}
+          onStartStream={startStream}
+        />
+
         {/* Stream Component */}
-        {isStreaming && <StreamComponent onClose={endStream} />}
+        {isStreaming && <StreamComponent onClose={endStream} title={streamTitle} />}
 
         {/* Featured Stream */}
         <div className="bg-gray-800 rounded-lg p-6 mb-8">
