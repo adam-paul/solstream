@@ -4,7 +4,7 @@ import { Upload } from 'lucide-react';
 interface StreamCreationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartStream: (title: string) => void;
+  onStartStream: (title: string, description: string, ticker: string) => void;
 }
 
 const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
@@ -52,7 +52,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onStartStream(streamTitle);
+    onStartStream(streamTitle, description, ticker);
     resetForm();
   };
 

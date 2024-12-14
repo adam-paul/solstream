@@ -5,20 +5,11 @@ import Image from 'next/image';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamComponent from './StreamComponent';
 import StreamCreationModal from './StreamCreationModal';
+import StreamTile from './StreamTile';
+import StreamViewer from './StreamViewer';
+import { useStreamStore, type Stream } from '@/lib/StreamStore';
 
-// Mock data for demonstration
-const mockStreams = [
-  {
-    id: 1,
-    title: "SOL Trading Analysis",
-    creator: "CryptoExpert",
-    createdAt: "1m ago",
-    marketCap: "$48.4K",
-    viewers: 156,
-    thumbnail: "/api/placeholder/400/300"
-  },
-];
-
+// Mock activity data (keeping this separate as it's not part of streams)
 const mockActivity = [
   "🎥 NewStream launched for $SOL",
   "👀 Trading101 just hit 1000 viewers",
@@ -30,10 +21,17 @@ const SolstreamUI: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
-  const [streamTitle, setStreamTitle] = useState<string>('');
+    const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
+  const [streamData, setStreamData] = useState({
+    title: '',
+    description: '',
+    ticker: ''
+  });
 
-  const startStream = (title: string) => {
-    setStreamTitle(title);
+  const { streams } = useStreamStore();
+
+  const startStream = (title: string, description: string, ticker: string) => {
+    setStreamData({ title, description, ticker });
     setShowStreamModal(false);
     setIsStreaming(true);
   };
@@ -41,6 +39,31 @@ const SolstreamUI: React.FC = () => {
   const endStream = () => {
     setIsStreaming(false);
   };
+
+  const handleStreamClick = (streamId: string | number) => {
+    const stream = streams.find(s => s.id === streamId);
+    if (stream) {
+      setSelectedStream(stream);
+    }
+  };
+
+  // Sort streams based on selected criteria
+  const sortedStreams = [...streams].sort((a, b) => {
+    switch (sortBy) {
+      case 'newest':
+        return b.createdAt.localeCompare(a.createdAt);
+      case 'viewers':
+        return b.viewers - a.viewers;
+      default:
+        return 0;
+    }
+  });
+
+  // Filter streams based on search query
+  const filteredStreams = sortedStreams.filter(stream =>
+    stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    stream.creator.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
@@ -72,8 +95,15 @@ const SolstreamUI: React.FC = () => {
           onStartStream={startStream}
         />
 
-        {/* Stream Component */}
-        {isStreaming && <StreamComponent onClose={endStream} title={streamTitle} />}
+        {/* Active Stream Component */}
+        {isStreaming && (
+          <StreamComponent
+            onClose={endStream}
+            title={streamData.title}
+            description={streamData.description}
+            ticker={streamData.ticker}
+          />
+        )}
 
         {/* Featured Stream */}
         <div className="bg-gray-800 rounded-lg p-6 mb-8">
@@ -149,29 +179,22 @@ const SolstreamUI: React.FC = () => {
 
         {/* Streams Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {mockStreams.map((stream) => (
-            <div key={stream.id} className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all">
-              <div className="relative w-full h-48">
-                <Image
-                  src={stream.thumbnail}
-                  alt={stream.title}
-                  fill
-                  className="object-cover"
-                />
-              </div>
-              <div className="p-4">
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className="font-semibold">{stream.title}</h3>
-                  <span className="text-green-400">{stream.marketCap}</span>
-                </div>
-                <div className="flex justify-between text-sm text-gray-400">
-                  <span>{stream.creator}</span>
-                  <span>{stream.viewers} viewers</span>
-                </div>
-              </div>
-            </div>
+          {filteredStreams.map((stream) => (
+            <StreamTile
+              key={stream.id}
+              stream={stream}
+              onClick={() => handleStreamClick(stream.id)}
+            />
           ))}
         </div>
+
+        {/* Stream Viewer */}
+        {selectedStream && (
+          <StreamViewer
+            stream={selectedStream}
+            onClose={() => setSelectedStream(null)}
+          />
+        )}
       </div>
     </div>
   );
