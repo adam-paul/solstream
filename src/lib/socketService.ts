@@ -1,5 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 import type { Stream } from './StreamStore';
+import { sessionManager } from './sessionManager';
 
 class SocketService {
   private socket: Socket | null = null;
@@ -16,9 +17,13 @@ class SocketService {
 
   connect() {
     if (!this.socket) {
+      // Include userId in connection query
       this.socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001', {
         transports: ['websocket'],
-        secure: true
+        secure: true,
+        query: {
+          userId: sessionManager.getUserId()
+        }
       });
       
       this.socket.on('connect', () => {
@@ -28,10 +33,16 @@ class SocketService {
       this.socket.on('connect_error', (error) => {
         console.error('WebSocket connection error:', error);
       });
+
+      // Handle role-related errors
+      this.socket.on('error', (error: { message: string }) => {
+        console.error('Socket error:', error.message);
+      });
     }
     return this.socket;
   }
 
+  // Stream Management
   startStream(stream: Stream) {
     this.socket?.emit('startStream', stream);
   }
@@ -40,10 +51,20 @@ class SocketService {
     this.socket?.emit('endStream', streamId);
   }
 
+  // Viewer Management
+  joinStream(streamId: string) {
+    this.socket?.emit('joinStream', streamId);
+  }
+
+  leaveStream(streamId: string) {
+    this.socket?.emit('leaveStream', streamId);
+  }
+
   updateViewerCount(streamId: string, count: number) {
     this.socket?.emit('updateViewerCount', { streamId, count });
   }
 
+  // Event Listeners
   onStreamStarted(callback: (stream: Stream) => void) {
     this.socket?.on('streamStarted', callback);
   }
@@ -52,15 +73,34 @@ class SocketService {
     this.socket?.on('streamEnded', callback);
   }
 
+  onViewerJoined(callback: (data: { streamId: string; count: number }) => void) {
+    this.socket?.on('viewerJoined', callback);
+  }
+
+  onViewerLeft(callback: (data: { streamId: string; count: number }) => void) {
+    this.socket?.on('viewerLeft', callback);
+  }
+
   onViewerCountUpdated(callback: (data: { streamId: string; count: number }) => void) {
     this.socket?.on('viewerCountUpdated', callback);
   }
 
+  // Error Handling
+  onError(callback: (error: { message: string }) => void) {
+    this.socket?.on('error', callback);
+  }
+
+  // Connection Management
   disconnect() {
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
     }
+  }
+
+  // Helper method to remove event listeners
+  removeListener(event: string, callback: (...args: any[]) => void) {
+    this.socket?.off(event, callback);
   }
 }
 

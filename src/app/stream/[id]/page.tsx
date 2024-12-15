@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import StreamComponent from '@/components/ui/StreamComponent';
+import StreamViewer from '@/components/ui/StreamViewer';
 import { useStreamStore } from '@/lib/StreamStore';
 
 interface PageProps {
@@ -19,6 +20,7 @@ export default function StreamPage(props: PageProps) {
   
   const stream = store((state) => state.getStream(streamId));
   const isActive = store((state) => state.isStreamActive(streamId));
+  const isHost = store((state) => state.isStreamHost(streamId));
 
   useEffect(() => {
     // If stream doesn't exist or isn't active, redirect to home
@@ -33,21 +35,14 @@ export default function StreamPage(props: PageProps) {
 
   if (!stream || !isActive) return null;
 
-  // Mock activity data (consider moving this to a shared constant)
-  const mockActivity = [
-    "🎥 NewStream launched for $SOL",
-    "👀 Trading101 just hit 1000 viewers",
-    "🚀 Technical Analysis stream starting for $BONK"
-  ];
-
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Header Ticker */}
       <div className="bg-yellow-400 text-black p-2 overflow-hidden">
         <div className="flex space-x-8 animate-scroll">
-          {mockActivity.map((activity, index) => (
-            <span key={index} className="whitespace-nowrap">{activity}</span>
-          ))}
+          <span className="whitespace-nowrap">🎥 Currently watching: {stream.title}</span>
+          <span className="whitespace-nowrap">👀 {stream.viewers} viewers</span>
+          {isHost && <span className="whitespace-nowrap">🎮 Broadcasting as host</span>}
         </div>
       </div>
 
@@ -62,11 +57,15 @@ export default function StreamPage(props: PageProps) {
 
         {/* Stream Content */}
         <div className="w-full max-w-5xl mx-auto">
-          {stream && (
+          {isHost ? (
             <StreamComponent
               streamId={streamId}
               onClose={handleClose}
-              isHost={true} // This will be determined by auth in the future
+            />
+          ) : (
+            <StreamViewer
+              stream={stream}
+              onClose={handleClose}
             />
           )}
         </div>

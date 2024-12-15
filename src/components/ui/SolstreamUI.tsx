@@ -47,10 +47,23 @@ const SolstreamUI: React.FC = () => {
     const newStream = addStream(streamData);
     startStream(newStream.id);  // Mark the stream as active
     setShowStreamModal(false);
-    router.push(`/stream/${newStream.id}`);  // Redirect to stream page
+    router.push(`/stream/${newStream.id}`);
   };
 
   const handleStreamSelect = (streamId: string) => {
+    const stream = streams.find(s => s.id === streamId);
+    
+    if (!stream) {
+      console.error('Stream not found');
+      return;
+    }
+
+    if (!isStreamActive(streamId)) {
+      console.error('Stream is not active');
+      return;
+    }
+
+    // Check if user is the host before routing
     router.push(`/stream/${streamId}`);
   };
 
@@ -68,7 +81,7 @@ const SolstreamUI: React.FC = () => {
 
   // Filter streams based on search query and active status
   const filteredStreams = sortedStreams
-    .filter(stream => isStreamActive(stream.id))  // Only show active streams
+    .filter(stream => isStreamActive(stream.id))
     .filter(stream =>
       stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       stream.ticker?.toLowerCase().includes(searchQuery.toLowerCase()) ||
