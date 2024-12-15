@@ -1,15 +1,13 @@
 'use client'
 
 import React, { useState } from 'react';
-import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
-import StreamComponent from './StreamComponent';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
-import StreamViewer from './StreamViewer';
-import { useStreamStore, type Stream } from '@/lib/StreamStore';
+import { useStreamStore } from '@/lib/StreamStore';
 
-// Mock activity data (keeping this separate as it's not part of streams)
+// Mock activity data
 const mockActivity = [
   "🎥 NewStream launched for $SOL",
   "👀 Trading101 just hit 1000 viewers",
@@ -17,53 +15,65 @@ const mockActivity = [
 ];
 
 const SolstreamUI: React.FC = () => {
+  const router = useRouter();
   const [sortBy, setSortBy] = useState<'featured' | 'newest' | 'viewers'>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [isStreaming, setIsStreaming] = useState<boolean>(false);
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
-    const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
-  const [streamData, setStreamData] = useState({
-    title: '',
-    description: '',
-    ticker: ''
-  });
 
-  const { streams } = useStreamStore();
-
-  const startStream = (title: string, description: string, ticker: string) => {
-    setStreamData({ title, description, ticker });
+  // Get store methods
+  const store = useStreamStore();
+  const streams = store((state) => state.streams);
+  const addStream = store((state) => state.addStream);
+  const startStream = store((state) => state.startStream);
+  const isStreamActive = store((state) => state.isStreamActive);
+  
+  const handleStartStream = (title: string, description: string, ticker: string) => {
+    const streamData = {
+      title,
+      description,
+      ticker,
+      creator: 'Current User', // In a real app, this would come from auth
+      marketCap: '0',
+      thumbnail: "/api/placeholder/400/300"
+    };
+    
+    const newStream = addStream(streamData);
+    startStream(newStream.id);  // Mark the stream as active
     setShowStreamModal(false);
-    setIsStreaming(true);
+    router.push(`/stream/${newStream.id}`);  // Redirect to stream page
   };
 
-  const endStream = () => {
-    setIsStreaming(false);
-  };
-
-  const handleStreamClick = (streamId: string | number) => {
-    const stream = streams.find(s => s.id === streamId);
-    if (stream) {
-      setSelectedStream(stream);
-    }
+  const handleStreamSelect = (streamId: string) => {
+    router.push(`/stream/${streamId}`);
   };
 
   // Sort streams based on selected criteria
   const sortedStreams = [...streams].sort((a, b) => {
     switch (sortBy) {
       case 'newest':
-        return b.createdAt.localeCompare(a.createdAt);
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       case 'viewers':
         return b.viewers - a.viewers;
       default:
-        return 0;
+        return 0; // 'featured' maintains original order
     }
   });
 
-  // Filter streams based on search query
-  const filteredStreams = sortedStreams.filter(stream =>
-    stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    stream.creator.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter streams based on search query and active status
+  const filteredStreams = sortedStreams
+    .filter(stream => isStreamActive(stream.id))  // Only show active streams
+    .filter(stream =>
+      stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      stream.ticker?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      stream.creator.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+
+  // Featured stream is the active one with the most viewers
+  const featuredStream = filteredStreams.length > 0 
+    ? filteredStreams.reduce((prev, current) => 
+        current.viewers > prev.viewers ? current : prev
+      )
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
@@ -92,36 +102,44 @@ const SolstreamUI: React.FC = () => {
         <StreamCreationModal
           isOpen={showStreamModal}
           onClose={() => setShowStreamModal(false)}
-          onStartStream={startStream}
+          onStartStream={handleStartStream}
         />
-
-        {/* Active Stream Component */}
-        {isStreaming && (
-          <StreamComponent
-            onClose={endStream}
-            title={streamData.title}
-            description={streamData.description}
-            ticker={streamData.ticker}
-          />
-        )}
 
         {/* Featured Stream */}
         <div className="bg-gray-800 rounded-lg p-6 mb-8">
           <h2 className="text-2xl font-bold mb-4 text-yellow-400">Current Top Stream</h2>
-          <div className="flex items-center space-x-4">
-            <div className="relative w-16 h-16">
-              <Image
-                src="/api/placeholder/100/100"
-                alt="Featured Stream"
-                fill
-                className="rounded-full object-cover"
-              />
+          {featuredStream ? (
+            <div 
+              className="flex items-center space-x-4 cursor-pointer"
+              onClick={() => handleStreamSelect(featuredStream.id)}
+            >
+              <div className="relative w-16 h-16 bg-gray-700 rounded-full overflow-hidden">
+                <img
+                  src={featuredStream.thumbnail}
+                  alt={featuredStream.title}
+                  className="object-cover w-full h-full"
+                />
+              </div>
+              <div>
+                <h3 className="text-xl">{featuredStream.title}</h3>
+                <p className="text-gray-400">
+                  {featuredStream.viewers} viewers • Started {new Date(featuredStream.createdAt).toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-xl">Trading Masterclass</h3>
-              <p className="text-gray-400">1.2k viewers • Started 2h ago</p>
+          ) : (
+            <div className="flex items-center space-x-4">
+              <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center">
+                <Eye className="text-gray-500" size={24} />
+              </div>
+              <div>
+                <h3 className="text-xl text-gray-500">No active streams</h3>
+                <p className="text-gray-400">
+                  Start streaming to be featured here
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Search Bar */}
@@ -137,9 +155,6 @@ const SolstreamUI: React.FC = () => {
               />
               <Search className="absolute right-3 top-2.5 text-gray-400" size={20} />
             </div>
-            <button className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg">
-              search
-            </button>
           </div>
         </div>
 
@@ -148,30 +163,30 @@ const SolstreamUI: React.FC = () => {
           <span className="text-gray-400">sort:</span>
           <div className="flex flex-wrap gap-2">
             <button
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-4 py-2 rounded-lg flex items-center ${
                 sortBy === 'featured' ? 'bg-green-500' : 'bg-gray-800'
               }`}
               onClick={() => setSortBy('featured')}
             >
-              <TrendingUp className="inline-block mr-2" size={16} />
+              <TrendingUp className="mr-2" size={16} />
               featured
             </button>
             <button
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-4 py-2 rounded-lg flex items-center ${
                 sortBy === 'newest' ? 'bg-green-500' : 'bg-gray-800'
               }`}
               onClick={() => setSortBy('newest')}
             >
-              <Clock className="inline-block mr-2" size={16} />
+              <Clock className="mr-2" size={16} />
               newest
             </button>
             <button
-              className={`px-4 py-2 rounded-lg ${
+              className={`px-4 py-2 rounded-lg flex items-center ${
                 sortBy === 'viewers' ? 'bg-green-500' : 'bg-gray-800'
               }`}
               onClick={() => setSortBy('viewers')}
             >
-              <Eye className="inline-block mr-2" size={16} />
+              <Eye className="mr-2" size={16} />
               most viewers
             </button>
           </div>
@@ -183,18 +198,10 @@ const SolstreamUI: React.FC = () => {
             <StreamTile
               key={stream.id}
               stream={stream}
-              onClick={() => handleStreamClick(stream.id)}
+              onClick={() => handleStreamSelect(stream.id)}
             />
           ))}
         </div>
-
-        {/* Stream Viewer */}
-        {selectedStream && (
-          <StreamViewer
-            stream={selectedStream}
-            onClose={() => setSelectedStream(null)}
-          />
-        )}
       </div>
     </div>
   );

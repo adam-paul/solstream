@@ -15,6 +15,7 @@
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
     "agora-rtc-sdk-ng": "^4.20.0",
+    "agora-token": "^2.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "gh-pages": "^6.2.0",

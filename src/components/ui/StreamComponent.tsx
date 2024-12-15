@@ -13,30 +13,79 @@ if (typeof window !== 'undefined') {
 }
 
 interface StreamComponentProps {
+  streamId: string;
   onClose: () => void;
-  title: string;
-  description: string;
-  ticker: string;
+  isHost?: boolean;
 }
 
 const StreamComponent: React.FC<StreamComponentProps> = ({
+  streamId,
   onClose,
-  title,
-  description,
-  ticker,
+  isHost = false,
 }) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
-  const [error, setError] = useState<string>('');
-  const { addStream, removeStream, updateViewerCount } = useStreamStore();
-  const [localTracks, setLocalTracks] = useState<{
+  const localTracksRef = useRef<{
     videoTrack: ICameraVideoTrack | null;
     audioTrack: IMicrophoneAudioTrack | null;
   }>({ videoTrack: null, audioTrack: null });
-  const [streamId] = useState(() => crypto.randomUUID());
+  const [error, setError] = useState<string>('');
+  
+  const store = useStreamStore();
+  const getStream = store((state) => state.getStream);
+  const updateViewerCount = store((state) => state.updateViewerCount);
+  const endStream = store((state) => state.endStream);
+  
+  // Memoize stream to prevent unnecessary re-renders
+  const stream = getStream(streamId);
+
+  const cleanup = async () => {
+    try {
+      // Stop and close video track
+      if (localTracksRef.current.videoTrack) {
+        localTracksRef.current.videoTrack.stop();
+        await localTracksRef.current.videoTrack.close();
+      }
+      
+      // Stop and close audio track
+      if (localTracksRef.current.audioTrack) {
+        localTracksRef.current.audioTrack.stop();
+        await localTracksRef.current.audioTrack.close();
+      }
+
+      // Clean up client if it exists and is connected
+      if (clientRef.current?.connectionState === 'CONNECTED') {
+        const tracks = [localTracksRef.current.audioTrack, localTracksRef.current.videoTrack]
+          .filter((track): track is ICameraVideoTrack | IMicrophoneAudioTrack => track !== null);
+        
+        if (tracks.length > 0) {
+          await clientRef.current.unpublish(tracks);
+        }
+        await clientRef.current.leave();
+      }
+
+      // Reset refs
+      localTracksRef.current = { videoTrack: null, audioTrack: null };
+      clientRef.current = null;
+    } catch (err) {
+      console.error('Error during cleanup:', err);
+    }
+  };
+
+  const handleEndStream = async () => {
+    await cleanup();
+    endStream(streamId);
+    onClose();
+    // Add a small delay to ensure cleanup completes before refresh
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
+  };
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !AgoraRTC) {
+    let isSubscribed = true;
+
+    if (typeof window === 'undefined' || !AgoraRTC || !stream) {
       return;
     }
 
@@ -48,101 +97,103 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
     const initAgora = async () => {
       try {
-        // Initialize Agora client
-        const client = AgoraRTC.createClient({ 
-          mode: "live", 
-          codec: "vp8",
-          role: "host"
-        });
-        clientRef.current = client;
+        // Only create a new client if one doesn't exist
+        if (!clientRef.current) {
+          const client = AgoraRTC.createClient({ 
+            mode: "live", 
+            codec: "vp8",
+            role: "host"
+          });
+          clientRef.current = client;
 
-        // Add new stream to store
-        addStream({
-          title,
-          description,
-          ticker,
-          creator: 'Current User',
-          marketCap: '0',
-          thumbnail: "/api/placeholder/400/300"
-        });
+          // Set up event listeners only once
+          client.on("user-joined", () => {
+            if (isSubscribed && clientRef.current) {
+              updateViewerCount(streamId, clientRef.current.remoteUsers.length);
+            }
+          });
+
+          client.on("user-left", () => {
+            if (isSubscribed && clientRef.current) {
+              updateViewerCount(streamId, clientRef.current.remoteUsers.length);
+            }
+          });
+        }
 
         const [audioTrack, videoTrack] = await Promise.all([
           AgoraRTC.createMicrophoneAudioTrack(),
           AgoraRTC.createCameraVideoTrack()
         ]);
 
-        setLocalTracks({
+        if (!isSubscribed || !clientRef.current) return;
+
+        localTracksRef.current = {
           audioTrack,
           videoTrack
-        });
+        };
 
-        const channelName = `stream-${title.replace(/\s+/g, '-').toLowerCase()}`;
-        await client.join(
+        // Get token from our API
+        const response = await fetch(`/api/agora-token?channel=${streamId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch token');
+        }
+        const { token, uid } = await response.json();
+        
+        if (!token) {
+          throw new Error('Failed to generate token');
+        }
+
+        if (!isSubscribed) return;
+
+        await clientRef.current.join(
           AGORA_APP_ID,
-          channelName,
-          null,
-          null
+          streamId,
+          token,
+          uid
         );
 
-        await client.publish([audioTrack, videoTrack]);
+        await clientRef.current.publish([audioTrack, videoTrack]);
 
         if (videoRef.current) {
           videoTrack.play(videoRef.current);
         }
 
-        client.on("user-joined", () => {
-          const viewerCount = client.remoteUsers.length;
-          updateViewerCount(streamId, viewerCount);
-        });
-
-        client.on("user-left", () => {
-          const viewerCount = client.remoteUsers.length;
-          updateViewerCount(streamId, viewerCount);
-        });
-
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to start stream';
-        setError(errorMessage);
+        if (isSubscribed) {
+          const errorMessage = err instanceof Error ? err.message : 'Failed to start stream';
+          setError(errorMessage);
+        }
       }
     };
 
     initAgora();
 
+    // Cleanup function
     return () => {
-      if (clientRef.current) {
-        localTracks.audioTrack?.close();
-        localTracks.videoTrack?.close();
-        clientRef.current.unpublish().then(() => {
-          clientRef.current?.leave();
-        });
-        removeStream(streamId);
-      }
+      isSubscribed = false;
+      cleanup();
     };
-  }, [title, description, ticker, addStream, removeStream, updateViewerCount, streamId]);
+  }, [stream, streamId, updateViewerCount]);
 
-  const handleClose = async () => {
-    if (clientRef.current) {
-      localTracks.audioTrack?.close();
-      localTracks.videoTrack?.close();
-      await clientRef.current.unpublish();
-      await clientRef.current.leave();
-    }
-    onClose();
-  };
+  if (!stream) {
+    return null;
+  }
 
   return (
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h2 className="text-2xl font-bold text-yellow-400">{title}</h2>
-          <p className="text-gray-400">${ticker}</p>
+          <h2 className="text-2xl font-bold text-yellow-400">{stream.title}</h2>
+          {stream.ticker && <p className="text-gray-400">${stream.ticker}</p>}
         </div>
-        <button 
-          onClick={handleClose}
-          className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
-        >
-          End Stream
-        </button>
+        {isHost && (
+          <button 
+            onClick={handleEndStream}
+            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
+          >
+            End Stream
+          </button>
+        )}
       </div>
       {error ? (
         <div className="text-red-500 p-4 bg-gray-900 rounded-lg">{error}</div>
@@ -152,7 +203,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
           className="w-full aspect-video bg-gray-900 rounded-lg"
         />
       )}
-      <p className="mt-4 text-gray-300">{description}</p>
+      {stream.description && (
+        <p className="mt-4 text-gray-300">{stream.description}</p>
+      )}
     </div>
   );
 };

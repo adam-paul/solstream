@@ -23,8 +23,9 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream, onClose }) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const [error, setError] = useState<string>('');
-  const { updateViewerCount } = useStreamStore();
-
+  const store = useStreamStore();
+  const updateViewerCount = store((state) => state.updateViewerCount);
+  
   useEffect(() => {
     if (typeof window === 'undefined' || !AgoraRTC) {
       return;
@@ -47,11 +48,19 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream, onClose }) => {
 
         const channelName = `stream-${stream.title.replace(/\s+/g, '-').toLowerCase()}`;
         
+        // Get token from our API
+        const response = await fetch(`/api/agora-token?channel=${channelName}`);
+        const { token, uid } = await response.json();
+        
+        if (!token) {
+          throw new Error('Failed to generate token');
+        }
+
         await client.join(
           AGORA_APP_ID,
           channelName,
-          null,
-          null
+          token,
+          uid
         );
 
         client.on("user-published", async (user: any, mediaType: string) => {

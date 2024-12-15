@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export interface Stream {
-  id: number | string;
+  id: string;
   title: string;
   creator: string;
   createdAt: string;
@@ -10,58 +10,82 @@ export interface Stream {
   thumbnail: string;
   ticker?: string;
   description?: string;
-  channelName?: string;  // Added for Agora channel reference
 }
-
-// Initial mock data
-const mockStreams: Stream[] = [
-  {
-    id: 1,
-    title: "SOL Trading Analysis",
-    creator: "CryptoExpert",
-    createdAt: "1m ago",
-    marketCap: "$48.4K",
-    viewers: 156,
-    thumbnail: "/api/placeholder/400/300"
-  },
-];
 
 interface StreamState {
   streams: Stream[];
-  addStream: (stream: Omit<Stream, 'id' | 'createdAt' | 'viewers' | 'channelName'>) => void;
-  removeStream: (id: string | number) => void;
-  updateViewerCount: (id: string | number, count: number) => void;
-  getChannelName: (id: string | number) => string | undefined;
+  activeStreams: Set<string>;  // Track which streams are currently live
+  addStream: (stream: Omit<Stream, 'id' | 'createdAt' | 'viewers'>) => Stream;
+  removeStream: (id: string) => void;
+  updateViewerCount: (id: string, count: number) => void;
+  getStream: (id: string) => Stream | undefined;
+  startStream: (id: string) => void;  // Mark a stream as active
+  endStream: (id: string) => void;    // Mark a stream as ended and remove it
+  isStreamActive: (id: string) => boolean;  // Check if a stream is currently live
 }
 
-export const useStreamStore = create<StreamState>((set, get) => ({
-  streams: mockStreams,
+// Create store with SSR/CSR safety
+const createStore = () => 
+  create<StreamState>((set, get) => ({
+    streams: [], // Initialize with empty array instead of mock data
+    activeStreams: new Set(), // Initialize with empty set
 
-  addStream: (streamData) => set((state) => ({
-    streams: [
-      ...state.streams,
-      {
+    addStream: (streamData) => {
+      const newStream = {
         ...streamData,
-        id: crypto.randomUUID(),
-        createdAt: '1m ago',
+        id: `stream-${crypto.randomUUID()}`,
+        createdAt: new Date().toISOString(),
         viewers: 0,
-        channelName: `stream-${streamData.title.replace(/\s+/g, '-').toLowerCase()}`
-      },
-    ],
-  })),
+      };
 
-  removeStream: (id) => set((state) => ({
-    streams: state.streams.filter(stream => stream.id !== id),
-  })),
+      set((state) => ({
+        streams: [...state.streams, newStream],
+      }));
 
-  updateViewerCount: (id, count) => set((state) => ({
-    streams: state.streams.map(stream =>
-      stream.id === id ? { ...stream, viewers: count } : stream
-    ),
-  })),
+      return newStream;
+    },
 
-  getChannelName: (id) => {
-    const stream = get().streams.find(s => s.id === id);
-    return stream?.channelName;
-  },
-}));
+    removeStream: (id) => set((state) => ({
+      streams: state.streams.filter(stream => stream.id !== id),
+      activeStreams: new Set([...state.activeStreams].filter(streamId => streamId !== id))
+    })),
+
+    updateViewerCount: (id, count) => set((state) => ({
+      streams: state.streams.map(stream =>
+        stream.id === id ? { ...stream, viewers: count } : stream
+      ),
+    })),
+
+    getStream: (id) => get().streams.find(s => s.id === id),
+    
+    startStream: (id) => set((state) => ({
+      activeStreams: new Set(state.activeStreams).add(id)
+    })),
+    
+    endStream: (id) => set((state) => {
+      const newActiveStreams = new Set(state.activeStreams);
+      newActiveStreams.delete(id);
+      return {
+        activeStreams: newActiveStreams,
+        streams: state.streams.filter(s => s.id !== id)
+      };
+    }),
+    
+    isStreamActive: (id) => get().activeStreams.has(id),
+  }));
+
+// Initialize store with SSR/CSR safety
+let store: ReturnType<typeof createStore> | undefined;
+
+export const useStreamStore = () => {
+  if (typeof window === 'undefined') {
+    // Server-side: create a new store instance
+    return createStore();
+  }
+  
+  // Client-side: create store once and reuse
+  if (!store) {
+    store = createStore();
+  }
+  return store;
+}
