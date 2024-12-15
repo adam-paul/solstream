@@ -62,7 +62,8 @@ const createStore = () =>
 
     isStreamHost: (streamId: string) => {
       const stream = get().streams.find(s => s.id === streamId);
-      return stream ? sessionManager.isStreamCreator(stream.creator) : false;
+      const currentUserId = sessionManager.getUserId();
+      return stream?.creator === currentUserId;
     },
 
     initializeWebSocket: () => {

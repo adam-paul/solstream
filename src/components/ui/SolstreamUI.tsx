@@ -7,6 +7,7 @@ import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
 import { useStreamStore } from '@/lib/StreamStore';
+import { sessionManager } from '@/lib/sessionManager';
 
 // Mock activity data
 const mockActivity = [
@@ -35,17 +36,18 @@ const SolstreamUI: React.FC = () => {
   }, [initializeWebSocket]);
   
   const handleStartStream = (title: string, description: string, ticker: string) => {
+    const sessionId = sessionManager.getUserId(); // Get actual session ID
     const streamData = {
       title,
       description,
       ticker,
-      creator: 'Current User', // In a real app, this would come from auth
+      creator: sessionId, // Use session ID as creator
       marketCap: '0',
       thumbnail: "/api/placeholder/400/300"
     };
     
     const newStream = addStream(streamData);
-    startStream(newStream.id);  // Mark the stream as active
+    startStream(newStream.id);
     setShowStreamModal(false);
     router.push(`/stream/${newStream.id}`);
   };
