@@ -32,8 +32,6 @@ const createStore = () =>
     activeStreams: new Set(),
 
     initializeWebSocket: () => {
-      const socket = socketService.connect();
-
       // Listen for new streams
       socketService.onStreamStarted((stream) => {
         set((state) => ({

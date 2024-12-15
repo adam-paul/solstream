@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "npm run build && vercel --prod"
+    "deploy": "npm run clean && npm run build && vercel --prod"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
