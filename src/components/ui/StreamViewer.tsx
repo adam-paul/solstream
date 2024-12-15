@@ -47,7 +47,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream, onClose }) => {
         });
         clientRef.current = client;
 
-        const channelName = `stream-${stream.title.replace(/\s+/g, '-').toLowerCase()}`;
+        const channelName = stream.id;
         
         // Get token from our API
         const response = await fetch(`/api/agora-token?channel=${channelName}`);

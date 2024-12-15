@@ -1,7 +1,7 @@
 'use client'
 
 import Image from 'next/image';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
@@ -23,10 +23,16 @@ const SolstreamUI: React.FC = () => {
 
   // Get store methods
   const store = useStreamStore();
+  const initializeWebSocket = store((state) => state.initializeWebSocket);
   const streams = store((state) => state.streams);
   const addStream = store((state) => state.addStream);
   const startStream = store((state) => state.startStream);
   const isStreamActive = store((state) => state.isStreamActive);
+
+  // Initialize WebSocket connection
+  useEffect(() => {
+    initializeWebSocket();
+  }, [initializeWebSocket]);
   
   const handleStartStream = (title: string, description: string, ticker: string) => {
     const streamData = {

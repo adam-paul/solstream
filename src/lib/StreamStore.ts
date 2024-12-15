@@ -1,4 +1,5 @@
-import { create } from 'zustand'
+import { create } from 'zustand';
+import { socketService } from './socketService';
 
 export interface Stream {
   id: string;
@@ -14,21 +15,61 @@ export interface Stream {
 
 interface StreamState {
   streams: Stream[];
-  activeStreams: Set<string>;  // Track which streams are currently live
+  activeStreams: Set<string>;
   addStream: (stream: Omit<Stream, 'id' | 'createdAt' | 'viewers'>) => Stream;
   removeStream: (id: string) => void;
   updateViewerCount: (id: string, count: number) => void;
   getStream: (id: string) => Stream | undefined;
-  startStream: (id: string) => void;  // Mark a stream as active
-  endStream: (id: string) => void;    // Mark a stream as ended and remove it
-  isStreamActive: (id: string) => boolean;  // Check if a stream is currently live
+  startStream: (id: string) => void;
+  endStream: (id: string) => void;
+  isStreamActive: (id: string) => boolean;
+  initializeWebSocket: () => void;
 }
 
-// Create store with SSR/CSR safety
 const createStore = () => 
   create<StreamState>((set, get) => ({
-    streams: [], // Initialize with empty array instead of mock data
-    activeStreams: new Set(), // Initialize with empty set
+    streams: [],
+    activeStreams: new Set(),
+
+    initializeWebSocket: () => {
+      const socket = socketService.connect();
+
+      // Listen for new streams
+      socketService.onStreamStarted((stream) => {
+        set((state) => ({
+          streams: [...state.streams, stream],
+          activeStreams: new Set(state.activeStreams).add(stream.id)
+        }));
+      });
+
+      // Listen for ended streams
+      socketService.onStreamEnded((streamId) => {
+        set((state) => ({
+          streams: state.streams.filter(s => s.id !== streamId),
+          activeStreams: new Set([...state.activeStreams].filter(id => id !== streamId))
+        }));
+      });
+
+      // Listen for viewer count updates
+      socketService.onViewerCountUpdated(({ streamId, count }) => {
+        set((state) => ({
+          streams: state.streams.map(stream =>
+            stream.id === streamId ? { ...stream, viewers: count } : stream
+          )
+        }));
+      });
+
+      // Initial fetch of active streams
+      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`)
+        .then(res => res.json())
+        .then(streams => {
+          set({ 
+            streams,
+            activeStreams: new Set(streams.map((s: Stream) => s.id))
+          });
+        })
+        .catch(console.error);
+    },
 
     addStream: (streamData) => {
       const newStream = {
@@ -45,45 +86,57 @@ const createStore = () =>
       return newStream;
     },
 
-    removeStream: (id) => set((state) => ({
-      streams: state.streams.filter(stream => stream.id !== id),
-      activeStreams: new Set([...state.activeStreams].filter(streamId => streamId !== id))
-    })),
+    removeStream: (id) => {
+      socketService.endStream(id);
+      set((state) => ({
+        streams: state.streams.filter(stream => stream.id !== id),
+        activeStreams: new Set([...state.activeStreams].filter(streamId => streamId !== id))
+      }));
+    },
 
-    updateViewerCount: (id, count) => set((state) => ({
-      streams: state.streams.map(stream =>
-        stream.id === id ? { ...stream, viewers: count } : stream
-      ),
-    })),
+    updateViewerCount: (id, count) => {
+      socketService.updateViewerCount(id, count);
+      set((state) => ({
+        streams: state.streams.map(stream =>
+          stream.id === id ? { ...stream, viewers: count } : stream
+        ),
+      }));
+    },
 
     getStream: (id) => get().streams.find(s => s.id === id),
     
-    startStream: (id) => set((state) => ({
-      activeStreams: new Set(state.activeStreams).add(id)
-    })),
+    startStream: (id) => {
+      const stream = get().getStream(id);
+      if (stream) {
+        socketService.startStream(stream);
+        set((state) => ({
+          activeStreams: new Set(state.activeStreams).add(id)
+        }));
+      }
+    },
     
-    endStream: (id) => set((state) => {
-      const newActiveStreams = new Set(state.activeStreams);
-      newActiveStreams.delete(id);
-      return {
-        activeStreams: newActiveStreams,
-        streams: state.streams.filter(s => s.id !== id)
-      };
-    }),
+    endStream: (id) => {
+      socketService.endStream(id);
+      set((state) => {
+        const newActiveStreams = new Set(state.activeStreams);
+        newActiveStreams.delete(id);
+        return {
+          activeStreams: newActiveStreams,
+          streams: state.streams.filter(s => s.id !== id)
+        };
+      });
+    },
     
     isStreamActive: (id) => get().activeStreams.has(id),
   }));
 
-// Initialize store with SSR/CSR safety
 let store: ReturnType<typeof createStore> | undefined;
 
 export const useStreamStore = () => {
   if (typeof window === 'undefined') {
-    // Server-side: create a new store instance
     return createStore();
   }
   
-  // Client-side: create store once and reuse
   if (!store) {
     store = createStore();
   }
