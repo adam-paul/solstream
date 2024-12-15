@@ -1,3 +1,4 @@
+// src/app/stream/[id]/page.tsx
 'use client'
 
 import React, { useEffect } from 'react';
@@ -46,8 +47,9 @@ export default function StreamPage(props: PageProps) {
         </div>
       </div>
 
-      {/* Back Button */}
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto p-4">
+        {/* Back Button */}
         <button 
           onClick={handleClose}
           className="text-blue-400 hover:text-blue-300 text-xl mb-8 w-full text-center"
@@ -63,9 +65,8 @@ export default function StreamPage(props: PageProps) {
               onClose={handleClose}
             />
           ) : (
-            <StreamViewer
+            <StreamViewer 
               stream={stream}
-              onClose={handleClose}
             />
           )}
         </div>
