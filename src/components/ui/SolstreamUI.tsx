@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
@@ -114,10 +115,11 @@ const SolstreamUI: React.FC = () => {
               onClick={() => handleStreamSelect(featuredStream.id)}
             >
               <div className="relative w-16 h-16 bg-gray-700 rounded-full overflow-hidden">
-                <img
+                <Image
                   src={featuredStream.thumbnail}
                   alt={featuredStream.title}
-                  className="object-cover w-full h-full"
+                  fill
+                  className="object-cover"
                 />
               </div>
               <div>

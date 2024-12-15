@@ -2,15 +2,16 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import type { IAgoraRTCClient } from 'agora-rtc-sdk-ng';
+import type { IAgoraRTCClient, IAgoraRTC, IAgoraRTCRemoteUser } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/lib/StreamStore';
 import { useStreamStore } from '@/lib/StreamStore';
 
-// Declare AgoraRTC as a variable that will be initialized on the client side
-let AgoraRTC: any;
+// Declare AgoraRTC variable
+let AgoraRTC: IAgoraRTC;
 
 // Initialize AgoraRTC only on the client side
 if (typeof window !== 'undefined') {
+  // Import directly since we're already checking for browser environment
   AgoraRTC = require('agora-rtc-sdk-ng');
 }
 
@@ -25,7 +26,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream, onClose }) => {
   const [error, setError] = useState<string>('');
   const store = useStreamStore();
   const updateViewerCount = store((state) => state.updateViewerCount);
-  
+
   useEffect(() => {
     if (typeof window === 'undefined' || !AgoraRTC) {
       return;
@@ -63,7 +64,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream, onClose }) => {
           uid
         );
 
-        client.on("user-published", async (user: any, mediaType: string) => {
+        client.on("user-published", async (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
           await client.subscribe(user, mediaType);
           
           if (mediaType === "video" && videoRef.current) {
@@ -76,7 +77,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream, onClose }) => {
 
         updateViewerCount(stream.id, client.remoteUsers.length + 1);
 
-        client.on("user-unpublished", async (user: any) => {
+        client.on("user-unpublished", async (user: IAgoraRTCRemoteUser) => {
           await client.unsubscribe(user);
         });
 
@@ -90,9 +91,9 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream, onClose }) => {
 
     return () => {
       if (clientRef.current) {
-        clientRef.current.remoteUsers.forEach((user: any) => {
-          user.videoTrack?.stop();
-          user.audioTrack?.stop();
+        clientRef.current.remoteUsers.forEach((user) => {
+          if (user.videoTrack) user.videoTrack.stop();
+          if (user.audioTrack) user.audioTrack.stop();
         });
         clientRef.current.leave();
         updateViewerCount(stream.id, Math.max(0, stream.viewers - 1));

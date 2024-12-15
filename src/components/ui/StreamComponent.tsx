@@ -1,14 +1,15 @@
 'use client'
 
 import React, { useRef, useEffect, useState } from 'react';
-import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
+import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack, IAgoraRTC } from 'agora-rtc-sdk-ng';
 import { useStreamStore } from '@/lib/StreamStore';
 
-// Declare AgoraRTC as a variable that will be initialized on the client side
-let AgoraRTC: any;
+// Declare AgoraRTC variable
+let AgoraRTC: IAgoraRTC;
 
 // Initialize AgoraRTC only on the client side
 if (typeof window !== 'undefined') {
+  // Import directly since we're already checking for browser environment
   AgoraRTC = require('agora-rtc-sdk-ng');
 }
 
@@ -36,7 +37,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   const updateViewerCount = store((state) => state.updateViewerCount);
   const endStream = store((state) => state.endStream);
   
-  // Memoize stream to prevent unnecessary re-renders
   const stream = getStream(streamId);
 
   const cleanup = async () => {

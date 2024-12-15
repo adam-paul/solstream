@@ -2,23 +2,19 @@
   "name": "solstream",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://adam-paul.github.io/solstream/",
   "scripts": {
     "dev": "next dev",
     "clean": "rm -rf .next out",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "predeploy": "npm run clean && next build",
-    "deploy": "gh-pages -d out"
+    "lint": "next lint"
   },
   "dependencies": {
     "@radix-ui/react-slot": "^1.1.0",
+    "agora-access-token": "^2.0.4",
     "agora-rtc-sdk-ng": "^4.20.0",
-    "agora-token": "^2.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "gh-pages": "^6.2.0",
     "lucide-react": "^0.468.0",
     "next": "15.1.0",
     "react": "^19.0.0",
