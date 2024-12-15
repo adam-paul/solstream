@@ -12,7 +12,11 @@ const app = express();
 const httpServer = createServer(app);
 
 // Configure CORS for both REST and WebSocket
-const allowedOrigins = ['https://solstream.fun', 'http://localhost:3000'];
+const allowedOrigins = [
+  'https://solstream.fun',
+  'https://www.solstream.fun',
+  'http://localhost:3000'
+];
 
 // CORS for REST endpoints
 app.use(cors({

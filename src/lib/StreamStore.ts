@@ -32,8 +32,13 @@ const createStore = () =>
     activeStreams: new Set(),
 
     initializeWebSocket: () => {
+      console.log('Initializing WebSocket connection...');
+      
+      socketService.connect();
+    
       // Listen for new streams
       socketService.onStreamStarted((stream) => {
+        console.log('Received new stream:', stream);
         set((state) => ({
           streams: [...state.streams, stream],
           activeStreams: new Set(state.activeStreams).add(stream.id)
