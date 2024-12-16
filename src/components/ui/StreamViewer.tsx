@@ -1,14 +1,20 @@
 // src/components/ui/StreamViewer.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IAgoraRTC } from 'agora-rtc-sdk-ng';
+import type { IAgoraRTCClient, IAgoraRTC } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/lib/StreamStore';
 import { useStreamStore } from '@/lib/StreamStore';
-import { socketService } from '@/lib/socketService';
 
 // Initialize AgoraRTC only on the client side
 let AgoraRTC: IAgoraRTC;
 if (typeof window !== 'undefined') {
-  AgoraRTC = require('agora-rtc-sdk-ng').default;  // Note the .default here
+  try {
+    const AgoraRTCModule = require('agora-rtc-sdk-ng');
+    console.log('[StreamViewer] AgoraRTC import result:', AgoraRTCModule);
+    AgoraRTC = AgoraRTCModule.default || AgoraRTCModule;
+    console.log('[StreamViewer] AgoraRTC initialized:', !!AgoraRTC);
+  } catch (err) {
+    console.error('[StreamViewer] Failed to import AgoraRTC:', err);
+  }
 }
 
 interface StreamViewerProps {
@@ -22,65 +28,59 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'failed'>('connecting');
   
   const store = useStreamStore();
-  const updateViewerCount = store((state) => state.updateViewerCount);
-  const isStreamHost = store((state) => state.isStreamHost(stream.id));
+  const isStreamHost = store((state) => state.isStreamHost);
 
   useEffect(() => {
-    if (isStreamHost) {
+    if (isStreamHost(stream.id)) {
       setError('Cannot view your own stream as a viewer');
       return;
     }
 
-    if (typeof window === 'undefined' || !AgoraRTC) {
+    if (typeof window === 'undefined') {
+      console.log('[StreamViewer] Running on server side, skipping');
+      return;
+    }
+
+    if (!AgoraRTC) {
+      console.error('[StreamViewer] AgoraRTC not initialized');
+      setError('Failed to initialize video SDK');
       return;
     }
 
     let isSubscribed = true;
-    let retryCount = 0;
-    const MAX_RETRIES = 3;
-
-    const cleanup = async () => {
-      if (clientRef.current) {
-        try {
-          // Remove all remote users first
-          clientRef.current.remoteUsers.forEach(async user => {
-            if (user.videoTrack) {
-              user.videoTrack.stop();
-              await clientRef.current?.unsubscribe(user);
-            }
-          });
-
-          // Leave the channel
-          await clientRef.current.leave();
-          
-          // Clear the client
-          clientRef.current = null;
-          setConnectionState('connecting');
-          
-          console.log('Cleanup completed successfully');
-        } catch (err) {
-          console.error('Cleanup error:', err);
-        }
-      }
-    };
 
     const initViewer = async () => {
       try {
-        await cleanup();
-
-        // Join the socket room
-        socketService.joinStream(stream.id);
-
-        // Create client with specific configuration
+        console.log('[StreamViewer] Creating client object...');
         const client = AgoraRTC.createClient({
           mode: "live",
           codec: "vp8",
           role: "audience"
         });
+        console.log('[StreamViewer] Client created:', !!client);
 
-        // Set up event handlers before joining
+        console.log('[StreamViewer] Fetching token...');
+        const response = await fetch(`/api/agora-token/?channel=${stream.id}`);
+        console.log('[StreamViewer] Token response status:', response.status);
+        
+        if (!response.ok) {
+          throw new Error('Token fetch failed: \${response.status}');
+        }
+        
+        const data = await response.json();
+        console.log('[StreamViewer] Token data received:', {
+          hasToken: !!data.token,
+          hasAppId: !!data.appId,
+          hasUid: !!data.uid
+        });
+
+        if (!data.token || !data.appId) {
+          throw new Error('Missing token or appId');
+        }
+
+        // Set up handlers before joining
         client.on("connection-state-change", (curState, prevState) => {
-          console.log("Connection state changed:", prevState, "->", curState);
+          console.log("[StreamViewer] Connection state:", prevState, "->", curState);
           switch (curState) {
             case "CONNECTED":
               setConnectionState('connected');
@@ -93,83 +93,61 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
           }
         });
 
-        // Store the client reference
-        clientRef.current = client;
-
-        // Get token from our API
-        const response = await fetch(`/api/agora-token/?channel=${stream.id}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch token');
-        }
-        
-        const { token, uid, appId } = await response.json();
-        if (!token || !appId) {
-          throw new Error('Invalid token response');
-        }
-
-        console.log('Joining with token:', { channelName: stream.id, uid });
-        await client.join(appId, stream.id, token, uid);
-
-        // Set up user-published handler
-        client.on("user-published", async (user: IAgoraRTCRemoteUser, mediaType) => {
-          if (!isSubscribed) return;
-          
-          try {
-            await client.subscribe(user, mediaType);
-            console.log("Subscribe success", mediaType);
-
-            if (mediaType === "video" && videoRef.current) {
-              user.videoTrack?.play(videoRef.current);
-            }
-            if (mediaType === "audio") {
-              user.audioTrack?.play();
-            }
-          } catch (err) {
-            console.error('Subscribe error:', err);
-          }
+        console.log('[StreamViewer] Joining channel:', {
+          appId: data.appId.slice(0, 4) + '...',
+          channel: stream.id,
+          uid: data.uid
         });
 
-        // Update viewer count handlers
-        const updateCount = () => {
-          if (isSubscribed && clientRef.current) {
-            updateViewerCount(stream.id, clientRef.current.remoteUsers.length + 1);
-          }
-        };
+        clientRef.current = client;
+        await client.join(data.appId, stream.id, data.token, data.uid);
+        console.log('[StreamViewer] Join successful');
 
-        client.on("user-joined", updateCount);
-        client.on("user-left", updateCount);
-        client.on("user-published", updateCount);
-        client.on("user-unpublished", updateCount);
+        if (isSubscribed) {
+          client.on("user-published", async (user, mediaType) => {
+            console.log('[StreamViewer] User published:', { uid: user.uid, mediaType });
+            
+            try {
+              await client.subscribe(user, mediaType);
+              console.log('[StreamViewer] Subscribed to:', mediaType);
+
+              if (mediaType === "video" && videoRef.current) {
+                user.videoTrack?.play(videoRef.current);
+                console.log('[StreamViewer] Playing video');
+              }
+              if (mediaType === "audio") {
+                user.audioTrack?.play();
+                console.log('[StreamViewer] Playing audio');
+              }
+            } catch (err) {
+              console.error('[StreamViewer] Subscribe error:', err);
+            }
+          });
+        }
 
         setConnectionState('connected');
-        updateCount();
         
       } catch (err) {
-        console.error('Connection error:', err);
+        console.error('[StreamViewer] Connection error:', err);
         const errorMessage = err instanceof Error ? err.message : 'Failed to connect to stream';
         setError(errorMessage);
-        
-        if (retryCount < MAX_RETRIES) {
-          retryCount++;
-          console.log(`Retrying connection (${retryCount}/${MAX_RETRIES})...`);
-          setTimeout(initViewer, 2000); // Retry after 2 seconds
-        } else {
-          setConnectionState('failed');
-        }
+        setConnectionState('failed');
       }
     };
 
+    // Start connection
+    console.log('[StreamViewer] Starting viewer initialization');
     initViewer();
 
+    // Cleanup
     return () => {
+      console.log('[StreamViewer] Component cleanup');
       isSubscribed = false;
-      socketService.leaveStream(stream.id);
-      cleanup().catch(console.error);
-      if (stream?.viewers) {
-        updateViewerCount(stream.id, Math.max(0, stream.viewers - 1));
+      if (clientRef.current) {
+        clientRef.current.leave().catch(console.error);
       }
     };
-  }, [stream.id, stream.viewers, updateViewerCount, isStreamHost]);
+  }, [stream.id, isStreamHost]);
 
   return (
     <div className="w-full bg-gray-800 rounded-lg overflow-hidden">
