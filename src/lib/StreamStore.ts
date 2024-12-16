@@ -38,6 +38,9 @@ interface StreamState {
   initializeWebSocket: () => void;
 }
 
+// Add an initialized flag to prevent multiple initializations
+let isWebSocketInitialized = false;
+
 const createStore = () => 
   create<StreamState>((set, get) => ({
     streams: [],
@@ -67,57 +70,91 @@ const createStore = () =>
     },
 
     initializeWebSocket: () => {
+      // Prevent multiple initializations
+      if (isWebSocketInitialized) {
+        console.log('WebSocket already initialized');
+        return;
+      }
+      
       console.log('Initializing WebSocket connection...');
       
-      socketService.connect();
-    
-      socketService.onStreamStarted((stream) => {
-        console.log('Received new stream:', stream);
-        set((state) => ({
-          streams: [...state.streams, stream],
-          activeStreams: new Set(state.activeStreams).add(stream.id)
-        }));
-      });
-
-      socketService.onStreamEnded((streamId) => {
-        set((state) => ({
-          streams: state.streams.filter(s => s.id !== streamId),
-          activeStreams: new Set([...state.activeStreams].filter(id => id !== streamId)),
-          userHostedStreams: new Set([...state.userHostedStreams].filter(id => id !== streamId))
-        }));
-      });
-
-      socketService.onViewerJoined(({ streamId, count }) => {
-        set((state) => ({
-          streams: state.streams.map(stream =>
-            stream.id === streamId ? { ...stream, viewers: count } : stream
-          )
-        }));
-      });
-
-      socketService.onViewerLeft(({ streamId, count }) => {
-        set((state) => ({
-          streams: state.streams.map(stream =>
-            stream.id === streamId ? { ...stream, viewers: count } : stream
-          )
-        }));
-      });
-
-      socketService.onError((error) => {
-        console.error('Socket error:', error.message);
-        // You might want to add error state handling here
-      });
-
-      // Initial fetch of active streams
-      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`)
-        .then(res => res.json())
-        .then(streams => {
-          set({ 
-            streams,
-            activeStreams: new Set(streams.map((s: Stream) => s.id))
+      try {
+        socketService.connect();
+        
+        // Clean up any existing listeners first
+        socketService.removeListener('streamStarted', () => {});
+        socketService.removeListener('streamEnded', () => {});
+        socketService.removeListener('viewerJoined', () => {});
+        socketService.removeListener('viewerLeft', () => {});
+        socketService.removeListener('error', () => {});
+        
+        socketService.onStreamStarted((stream) => {
+          console.log('Received new stream:', stream);
+          set((state) => {
+            // Check if stream already exists
+            if (state.streams.some(s => s.id === stream.id)) {
+              return state;
+            }
+            return {
+              streams: [...state.streams, stream],
+              activeStreams: new Set(state.activeStreams).add(stream.id)
+            };
           });
-        })
-        .catch(console.error);
+        });
+
+        socketService.onStreamEnded((streamId) => {
+          set((state) => ({
+            streams: state.streams.filter(s => s.id !== streamId),
+            activeStreams: new Set([...state.activeStreams].filter(id => id !== streamId)),
+            userHostedStreams: new Set([...state.userHostedStreams].filter(id => id !== streamId))
+          }));
+        });
+
+        socketService.onViewerJoined(({ streamId, count }) => {
+          set((state) => ({
+            streams: state.streams.map(stream =>
+              stream.id === streamId ? { ...stream, viewers: count } : stream
+            )
+          }));
+        });
+
+        socketService.onViewerLeft(({ streamId, count }) => {
+          set((state) => ({
+            streams: state.streams.map(stream =>
+              stream.id === streamId ? { ...stream, viewers: count } : stream
+            )
+          }));
+        });
+
+        socketService.onError((error) => {
+          console.error('Socket error:', error.message);
+        });
+
+        // Initial fetch of active streams with error handling
+        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`)
+          .then(res => {
+            if (!res.ok) {
+              throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            return res.json();
+          })
+          .then(streams => {
+            set({ 
+              streams,
+              activeStreams: new Set(streams.map((s: Stream) => s.id))
+            });
+          })
+          .catch(err => {
+            console.error('Error fetching streams:', err);
+            // Set empty state on error
+            set({ streams: [], activeStreams: new Set() });
+          });
+
+        isWebSocketInitialized = true;
+      } catch (error) {
+        console.error('Error initializing WebSocket:', error);
+        isWebSocketInitialized = false;
+      }
     },
 
     addStream: (streamData) => {
