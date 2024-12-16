@@ -1,7 +1,7 @@
 // src/app/stream/[id]/page.tsx
 'use client'
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StreamComponent from '@/components/ui/StreamComponent';
 import StreamViewer from '@/components/ui/StreamViewer';
@@ -15,26 +15,41 @@ interface PageProps {
 
 export default function StreamPage(props: PageProps) {
   const router = useRouter();
-  const store = useStreamStore();
-  const params = React.use(props.params);
-  const streamId = params.id;
+  const [streamId, setStreamId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
-  const stream = store((state) => state.getStream(streamId));
-  const isActive = store((state) => state.isStreamActive(streamId));
-  const isHost = store((state) => state.isStreamHost(streamId));
+  const store = useStreamStore();
+  const stream = store((state) => streamId ? state.getStream(streamId) : undefined);
+  const isActive = store((state) => streamId ? state.isStreamActive(streamId) : false);
+  const isHost = store((state) => streamId ? state.isStreamHost(streamId) : false);
 
   useEffect(() => {
-    // If stream doesn't exist or isn't active, redirect to home
-    if (!stream || !isActive) {
+    const initializeParams = async () => {
+      try {
+        const resolvedParams = await props.params;
+        setStreamId(resolvedParams.id);
+      } catch (error) {
+        console.error('Error resolving params:', error);
+        router.push('/');
+      }
+    };
+
+    initializeParams();
+  }, [props.params, router]);
+
+  useEffect(() => {
+    if (streamId && (!stream || !isActive)) {
       router.push('/');
+      return;
     }
-  }, [stream, isActive, router]);
+    setIsLoading(false);
+  }, [stream, isActive, router, streamId]);
 
   const handleClose = () => {
     router.push('/');
   };
 
-  if (!stream || !isActive) return null;
+  if (isLoading || !stream || !streamId || !isActive) return null;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
@@ -57,15 +72,17 @@ export default function StreamPage(props: PageProps) {
           [go back]
         </button>
 
-        {/* Stream Content */}
+        {/* Stream Content - Key component to prevent multiple instances */}
         <div className="w-full max-w-5xl mx-auto">
           {isHost ? (
             <StreamComponent
+              key={`host-${streamId}`}
               streamId={streamId}
               onClose={handleClose}
             />
           ) : (
-            <StreamViewer 
+            <StreamViewer
+              key={`viewer-${streamId}`}
               stream={stream}
             />
           )}

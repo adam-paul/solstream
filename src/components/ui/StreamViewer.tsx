@@ -43,8 +43,37 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
 
     let isSubscribed = true;
 
+    const cleanup = async () => {
+      if (clientRef.current) {
+        // Unsubscribe from all remote users
+        for (const user of clientRef.current.remoteUsers) {
+          await clientRef.current.unsubscribe(user);
+          if (user.videoTrack) user.videoTrack.stop();
+          if (user.audioTrack) user.audioTrack.stop();
+        }
+        
+        // Remove all event listeners
+        clientRef.current.removeAllListeners();
+        
+        // Leave the channel
+        try {
+          await clientRef.current.leave();
+        } catch (err) {
+          console.error('Error leaving channel:', err);
+        }
+        
+        clientRef.current = null;
+        setIsConnected(false);
+      }
+    };
+
     const initViewer = async () => {
       try {
+        // Clear any existing client
+        if (clientRef.current) {
+          await cleanup();
+        }
+
         socketService.joinStream(stream.id);
 
         const client = AgoraRTC.createClient({ 
@@ -70,6 +99,8 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         );
 
         client.on("user-published", async (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
+          if (!isSubscribed) return;
+          
           await client.subscribe(user, mediaType);
           
           if (mediaType === "video" && videoRef.current) {
@@ -106,16 +137,8 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     return () => {
       isSubscribed = false;
       socketService.leaveStream(stream.id);
-      if (clientRef.current) {
-        clientRef.current.remoteUsers.forEach((user) => {
-          if (user.videoTrack) user.videoTrack.stop();
-          if (user.audioTrack) user.audioTrack.stop();
-        });
-        
-        clientRef.current.leave().then(() => {
-          updateViewerCount(stream.id, Math.max(0, stream.viewers - 1));
-        }).catch(console.error);
-      }
+      cleanup().catch(console.error);
+      updateViewerCount(stream.id, Math.max(0, stream.viewers - 1));
     };
   }, [stream.id, stream.viewers, updateViewerCount, isStreamHost]);
 
