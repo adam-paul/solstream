@@ -1,6 +1,6 @@
 // src/components/ui/StreamViewer.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IAgoraRTC, ConnectionState } from 'agora-rtc-sdk-ng';
+import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IAgoraRTC } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/lib/StreamStore';
 import { useStreamStore } from '@/lib/StreamStore';
 import { socketService } from '@/lib/socketService';
@@ -8,7 +8,7 @@ import { socketService } from '@/lib/socketService';
 // Initialize AgoraRTC only on the client side
 let AgoraRTC: IAgoraRTC;
 if (typeof window !== 'undefined') {
-  AgoraRTC = require('agora-rtc-sdk-ng');
+  AgoraRTC = require('agora-rtc-sdk-ng').default;  // Note the .default here
 }
 
 interface StreamViewerProps {
@@ -19,7 +19,6 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const [error, setError] = useState<string>('');
-  const [isConnected, setIsConnected] = useState(false);
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'failed'>('connecting');
   
   const store = useStreamStore();
@@ -36,56 +35,51 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       return;
     }
 
-    const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID;
-    if (!AGORA_APP_ID) {
-      setError('Agora App ID not configured');
-      return;
-    }
-
     let isSubscribed = true;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
 
     const cleanup = async () => {
       if (clientRef.current) {
-        // Unsubscribe from all remote users
-        for (const user of clientRef.current.remoteUsers) {
-          await clientRef.current.unsubscribe(user);
-          if (user.videoTrack) user.videoTrack.stop();
-          if (user.audioTrack) user.audioTrack.stop();
-        }
-        
-        // Remove all event listeners
-        clientRef.current.removeAllListeners();
-        
-        // Leave the channel
         try {
+          // Remove all remote users first
+          clientRef.current.remoteUsers.forEach(async user => {
+            if (user.videoTrack) {
+              user.videoTrack.stop();
+              await clientRef.current?.unsubscribe(user);
+            }
+          });
+
+          // Leave the channel
           await clientRef.current.leave();
+          
+          // Clear the client
+          clientRef.current = null;
+          setConnectionState('connecting');
+          
+          console.log('Cleanup completed successfully');
         } catch (err) {
-          console.error('Error leaving channel:', err);
+          console.error('Cleanup error:', err);
         }
-        
-        clientRef.current = null;
-        setIsConnected(false);
       }
     };
 
     const initViewer = async () => {
       try {
-        // Clear any existing client
-        if (clientRef.current) {
-          await cleanup();
-        }
+        await cleanup();
 
+        // Join the socket room
         socketService.joinStream(stream.id);
 
-        const client = AgoraRTC.createClient({ 
-          mode: "live", 
+        // Create client with specific configuration
+        const client = AgoraRTC.createClient({
+          mode: "live",
           codec: "vp8",
           role: "audience"
         });
-        clientRef.current = client;
 
-        // Add connection state change listener
-        client.on("connection-state-change", (curState: ConnectionState, prevState: ConnectionState) => {
+        // Set up event handlers before joining
+        client.on("connection-state-change", (curState, prevState) => {
           console.log("Connection state changed:", prevState, "->", curState);
           switch (curState) {
             case "CONNECTED":
@@ -99,35 +93,43 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
           }
         });
 
+        // Store the client reference
+        clientRef.current = client;
+
         // Get token from our API
-        const response = await fetch(`/api/agora-token?channel=${stream.id}`);
-        const { token, uid } = await response.json();
+        const response = await fetch(`/api/agora-token/?channel=${stream.id}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch token');
+        }
         
-        if (!token) {
-          throw new Error('Failed to generate token');
+        const { token, uid, appId } = await response.json();
+        if (!token || !appId) {
+          throw new Error('Invalid token response');
         }
 
-        await client.join(
-          AGORA_APP_ID,
-          stream.id,
-          token,
-          uid
-        );
+        console.log('Joining with token:', { channelName: stream.id, uid });
+        await client.join(appId, stream.id, token, uid);
 
-        client.on("user-published", async (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
+        // Set up user-published handler
+        client.on("user-published", async (user: IAgoraRTCRemoteUser, mediaType) => {
           if (!isSubscribed) return;
           
-          await client.subscribe(user, mediaType);
-          
-          if (mediaType === "video" && videoRef.current) {
-            user.videoTrack?.play(videoRef.current);
-          }
-          if (mediaType === "audio") {
-            user.audioTrack?.play();
+          try {
+            await client.subscribe(user, mediaType);
+            console.log("Subscribe success", mediaType);
+
+            if (mediaType === "video" && videoRef.current) {
+              user.videoTrack?.play(videoRef.current);
+            }
+            if (mediaType === "audio") {
+              user.audioTrack?.play();
+            }
+          } catch (err) {
+            console.error('Subscribe error:', err);
           }
         });
 
-        // Update viewer count
+        // Update viewer count handlers
         const updateCount = () => {
           if (isSubscribed && clientRef.current) {
             updateViewerCount(stream.id, clientRef.current.remoteUsers.length + 1);
@@ -139,37 +141,35 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         client.on("user-published", updateCount);
         client.on("user-unpublished", updateCount);
 
-        setIsConnected(true);
+        setConnectionState('connected');
         updateCount();
-
+        
       } catch (err) {
+        console.error('Connection error:', err);
         const errorMessage = err instanceof Error ? err.message : 'Failed to connect to stream';
         setError(errorMessage);
+        
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          console.log(`Retrying connection (${retryCount}/${MAX_RETRIES})...`);
+          setTimeout(initViewer, 2000); // Retry after 2 seconds
+        } else {
+          setConnectionState('failed');
+        }
       }
     };
 
     initViewer();
 
-    // Add reconnection logic
-    let reconnectTimer: NodeJS.Timeout;
-
-    if (connectionState === 'failed') {
-      reconnectTimer = setTimeout(() => {
-        console.log('Attempting to reconnect...');
-        initViewer();
-      }, 5000);
-    }
-
     return () => {
       isSubscribed = false;
-      if (reconnectTimer) {
-        clearTimeout(reconnectTimer);
-      }
       socketService.leaveStream(stream.id);
       cleanup().catch(console.error);
-      updateViewerCount(stream.id, Math.max(0, stream.viewers - 1));
+      if (stream?.viewers) {
+        updateViewerCount(stream.id, Math.max(0, stream.viewers - 1));
+      }
     };
-  }, [stream.id, stream.viewers, updateViewerCount, isStreamHost, connectionState]);
+  }, [stream.id, stream.viewers, updateViewerCount, isStreamHost]);
 
   return (
     <div className="w-full bg-gray-800 rounded-lg overflow-hidden">
@@ -183,7 +183,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
             <h2 className="text-xl font-bold">{stream.title}</h2>
             <div className="flex justify-between text-sm text-gray-400 mt-1">
               <span>{stream.creator}</span>
-              <span>{isConnected ? 'Connected' : 'Connecting...'}</span>
+              <span>{connectionState === 'connected' ? 'Connected' : 'Connecting...'}</span>
             </div>
           </div>
 
