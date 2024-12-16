@@ -70,6 +70,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     await cleanup();
     endStream(streamId);
     onClose();
+    window.location.href = '/';
   };
 
   useEffect(() => {
