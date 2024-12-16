@@ -1,6 +1,6 @@
 // src/components/ui/StreamViewer.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import type { IAgoraRTCClient, IAgoraRTC, IAgoraRTCRemoteUser } from 'agora-rtc-sdk-ng';
+import type { IAgoraRTCClient, IAgoraRTCRemoteUser, IAgoraRTC, ConnectionState } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/lib/StreamStore';
 import { useStreamStore } from '@/lib/StreamStore';
 import { socketService } from '@/lib/socketService';
@@ -20,6 +20,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   const clientRef = useRef<IAgoraRTCClient | null>(null);
   const [error, setError] = useState<string>('');
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'failed'>('connecting');
   
   const store = useStreamStore();
   const updateViewerCount = store((state) => state.updateViewerCount);
@@ -83,6 +84,21 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         });
         clientRef.current = client;
 
+        // Add connection state change listener
+        client.on("connection-state-change", (curState: ConnectionState, prevState: ConnectionState) => {
+          console.log("Connection state changed:", prevState, "->", curState);
+          switch (curState) {
+            case "CONNECTED":
+              setConnectionState('connected');
+              break;
+            case "DISCONNECTED":
+              setConnectionState('failed');
+              break;
+            default:
+              setConnectionState('connecting');
+          }
+        });
+
         // Get token from our API
         const response = await fetch(`/api/agora-token?channel=${stream.id}`);
         const { token, uid } = await response.json();
@@ -134,13 +150,26 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
 
     initViewer();
 
+    // Add reconnection logic
+    let reconnectTimer: NodeJS.Timeout;
+
+    if (connectionState === 'failed') {
+      reconnectTimer = setTimeout(() => {
+        console.log('Attempting to reconnect...');
+        initViewer();
+      }, 5000);
+    }
+
     return () => {
       isSubscribed = false;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
       socketService.leaveStream(stream.id);
       cleanup().catch(console.error);
       updateViewerCount(stream.id, Math.max(0, stream.viewers - 1));
     };
-  }, [stream.id, stream.viewers, updateViewerCount, isStreamHost]);
+  }, [stream.id, stream.viewers, updateViewerCount, isStreamHost, connectionState]);
 
   return (
     <div className="w-full bg-gray-800 rounded-lg overflow-hidden">

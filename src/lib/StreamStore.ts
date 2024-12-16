@@ -70,7 +70,6 @@ const createStore = () =>
     },
 
     initializeWebSocket: () => {
-      // Prevent multiple initializations
       if (isWebSocketInitialized) {
         console.log('WebSocket already initialized');
         return;
@@ -79,7 +78,22 @@ const createStore = () =>
       console.log('Initializing WebSocket connection...');
       
       try {
-        socketService.connect();
+        const socket = socketService.connect();
+        
+        // Add a specific handler for stream state sync
+        socket.on('connect', async () => {
+          console.log('Connected to WebSocket server');
+          try {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`);
+            const streams = await response.json();
+            set({ 
+              streams,
+              activeStreams: new Set(streams.map((s: Stream) => s.id))
+            });
+          } catch (error) {
+            console.error('Error fetching initial streams:', error);
+          }
+        });
         
         // Clean up any existing listeners first
         socketService.removeListener('streamStarted', () => {});

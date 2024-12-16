@@ -79,22 +79,21 @@ io.on('connection', (socket) => {
 
   socket.on('startStream', async (streamData: Stream) => {
     try {
-      // Verify the user is the creator
       if (streamData.creator !== userId) {
         socket.emit('error', { message: 'Unauthorized to start this stream' });
         return;
       }
 
-      await redisManager.addStream(streamData);
-      
-      // Update user's role for this stream
-      const userData = connectedUsers.get(userId);
-      if (userData) {
-        userData.streams.add(streamData.id);
-        userData.role = 'host';
-        connectedUsers.set(userId, userData);
+      // Ensure stream doesn't already exist
+      const existingStream = await redisManager.getStream(streamData.id);
+      if (existingStream) {
+        socket.emit('error', { message: 'Stream already exists' });
+        return;
       }
 
+      await redisManager.addStream(streamData);
+      
+      // Broadcast to all connected clients
       io.emit('streamStarted', streamData);
       console.log('Stream started:', streamData.id, 'by user:', userId);
     } catch (error) {
@@ -107,7 +106,6 @@ io.on('connection', (socket) => {
     try {
       const stream = await redisManager.getStream(streamId);
       
-      // Verify the user is the creator
       if (stream && stream.creator !== userId) {
         socket.emit('error', { message: 'Unauthorized to end this stream' });
         return;
