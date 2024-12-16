@@ -18,7 +18,7 @@ const allowedOrigins = [
   'http://localhost:3000'
 ];
 
-// Update the CORS configuration
+// CORS configuration - moved to top
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -29,10 +29,14 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Access-Control-Allow-Origin']
 }));
 
-// Update Socket.IO CORS configuration
+// Handle preflight requests
+app.options('*', cors());
+
+// Socket.IO CORS configuration
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
@@ -55,9 +59,11 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.get('/api/streams', async (req, res) => {
+app.get('/api/streams', cors(), async (req, res) => {
   try {
     const streams = await redisManager.getAllStreams();
+    res.header('Access-Control-Allow-Origin', 'https://www.solstream.fun');
+    res.header('Access-Control-Allow-Credentials', 'true');
     res.json(streams);
   } catch (error) {
     console.error('Error fetching streams:', error);
@@ -93,6 +99,14 @@ io.on('connection', (socket) => {
 
       await redisManager.addStream(streamData);
       
+      // Update user's role for this stream
+      const userData = connectedUsers.get(userId);
+      if (userData) {
+        userData.streams.add(streamData.id);
+        userData.role = 'host';
+        connectedUsers.set(userId, userData);
+      }
+
       // Broadcast to all connected clients
       io.emit('streamStarted', streamData);
       console.log('Stream started:', streamData.id, 'by user:', userId);
