@@ -177,7 +177,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       isSubscribed = false;
       cleanup();
     };
-  }, [stream.id, isStreamHost]);
+  }, [stream.id, isStreamHost, connectionState]);
 
   // Retry mechanism
   const handleRetry = () => {

@@ -50,11 +50,6 @@ export default function StreamPage(props: PageProps) {
     router.push('/');
   };
 
-  const handleError = () => {
-    // Optionally handle stream errors here
-    console.log('Stream encountered an error');
-  };
-
   if (isLoading || !stream || !streamId || !isActive) return null;
 
   return (
