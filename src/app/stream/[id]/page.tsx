@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import StreamComponent from '@/components/ui/StreamComponent';
 import StreamViewer from '@/components/ui/StreamViewer';
+import StreamErrorBoundary from '@/components/ui/StreamErrorBoundary';
 import { useStreamStore } from '@/lib/StreamStore';
 
 interface PageProps {
@@ -49,6 +50,11 @@ export default function StreamPage(props: PageProps) {
     router.push('/');
   };
 
+  const handleError = () => {
+    // Optionally handle stream errors here
+    console.log('Stream encountered an error');
+  };
+
   if (isLoading || !stream || !streamId || !isActive) return null;
 
   return (
@@ -74,18 +80,20 @@ export default function StreamPage(props: PageProps) {
 
         {/* Stream Content - Key component to prevent multiple instances */}
         <div className="w-full max-w-5xl mx-auto">
-          {isHost ? (
-            <StreamComponent
-              key={`host-${streamId}`}
-              streamId={streamId}
-              onClose={handleClose}
-            />
-          ) : (
-            <StreamViewer
-              key={`viewer-${streamId}`}
-              stream={stream}
-            />
-          )}
+          <StreamErrorBoundary onReset={() => window.location.reload()}>
+            {isHost ? (
+              <StreamComponent
+                key={`host-${streamId}`}
+                streamId={streamId}
+                onClose={handleClose}
+              />
+            ) : (
+              <StreamViewer
+                key={`viewer-${streamId}`}
+                stream={stream}
+              />
+            )}
+          </StreamErrorBoundary>
         </div>
       </div>
     </div>

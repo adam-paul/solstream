@@ -39,6 +39,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   // Cleanup function
   const cleanup = async () => {
     try {
+      // Clean up tracks
       if (localTracksRef.current.videoTrack) {
         localTracksRef.current.videoTrack.stop();
         await localTracksRef.current.videoTrack.close();
@@ -49,20 +50,29 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         await localTracksRef.current.audioTrack.close();
       }
 
-      if (clientRef.current?.connectionState === 'CONNECTED') {
-        const tracks = [localTracksRef.current.audioTrack, localTracksRef.current.videoTrack]
-          .filter((track): track is ICameraVideoTrack | IMicrophoneAudioTrack => track !== null);
+      // Clean up client
+      if (clientRef.current) {
+        // Remove all event listeners
+        clientRef.current.removeAllListeners();
         
-        if (tracks.length > 0) {
-          await clientRef.current.unpublish(tracks);
+        // Unpublish and leave if connected
+        if (clientRef.current.connectionState === 'CONNECTED') {
+          const tracks = [localTracksRef.current.audioTrack, localTracksRef.current.videoTrack]
+            .filter((track): track is ICameraVideoTrack | IMicrophoneAudioTrack => track !== null);
+          
+          if (tracks.length > 0) {
+            await clientRef.current.unpublish(tracks);
+          }
+          await clientRef.current.leave();
         }
-        await clientRef.current.leave();
       }
 
+      // Reset refs
       localTracksRef.current = { videoTrack: null, audioTrack: null };
       clientRef.current = null;
     } catch (err) {
       console.error('Error during cleanup:', err);
+      setError('Failed to clean up stream resources');
     }
   };
 

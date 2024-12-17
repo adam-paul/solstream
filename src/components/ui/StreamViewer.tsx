@@ -4,6 +4,7 @@ import type { IAgoraRTCClient, IAgoraRTC } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/lib/StreamStore';
 import { useStreamStore } from '@/lib/StreamStore';
 
+
 // Initialize AgoraRTC only on the client side
 let AgoraRTC: IAgoraRTC;
 if (typeof window !== 'undefined') {
@@ -20,6 +21,8 @@ if (typeof window !== 'undefined') {
 interface StreamViewerProps {
   stream: Stream;
 }
+
+const CONNECTION_TIMEOUT = 15000; // 15 seconds timeout
 
 const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   const videoRef = useRef<HTMLDivElement>(null);
@@ -48,6 +51,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     }
 
     let isSubscribed = true;
+    let connectionTimeout: NodeJS.Timeout;
 
     const initViewer = async () => {
       try {
@@ -59,12 +63,21 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         });
         console.log('[StreamViewer] Client created:', !!client);
 
+        // Set up connection timeout
+        connectionTimeout = setTimeout(() => {
+          if (connectionState === 'connecting') {
+            setError('Connection timeout - please try again');
+            setConnectionState('failed');
+            cleanup();
+          }
+        }, CONNECTION_TIMEOUT);
+
         console.log('[StreamViewer] Fetching token...');
         const response = await fetch(`/api/agora-token/?channel=${stream.id}`);
         console.log('[StreamViewer] Token response status:', response.status);
         
         if (!response.ok) {
-          throw new Error('Token fetch failed: \${response.status}');
+          throw new Error(`Token fetch failed: ${response.status}`);
         }
         
         const data = await response.json();
@@ -81,9 +94,12 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         // Set up handlers before joining
         client.on("connection-state-change", (curState, prevState) => {
           console.log("[StreamViewer] Connection state:", prevState, "->", curState);
+          if (!isSubscribed) return;
+          
           switch (curState) {
             case "CONNECTED":
               setConnectionState('connected');
+              clearTimeout(connectionTimeout);
               break;
             case "DISCONNECTED":
               setConnectionState('failed');
@@ -121,6 +137,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
               }
             } catch (err) {
               console.error('[StreamViewer] Subscribe error:', err);
+              setError('Failed to subscribe to stream');
             }
           });
         }
@@ -135,6 +152,21 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       }
     };
 
+    const cleanup = async () => {
+      clearTimeout(connectionTimeout);
+      if (clientRef.current) {
+        try {
+          clientRef.current.removeAllListeners();
+          if (clientRef.current.connectionState === 'CONNECTED') {
+            await clientRef.current.leave();
+          }
+          clientRef.current = null;
+        } catch (err) {
+          console.error('[StreamViewer] Cleanup error:', err);
+        }
+      }
+    };
+
     // Start connection
     console.log('[StreamViewer] Starting viewer initialization');
     initViewer();
@@ -143,17 +175,35 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     return () => {
       console.log('[StreamViewer] Component cleanup');
       isSubscribed = false;
-      if (clientRef.current) {
-        clientRef.current.leave().catch(console.error);
-      }
+      cleanup();
     };
   }, [stream.id, isStreamHost]);
+
+  // Retry mechanism
+  const handleRetry = () => {
+    setError('');
+    setConnectionState('connecting');
+    // Re-trigger the effect
+    const effect = async () => {
+      if (clientRef.current) {
+        await clientRef.current.leave();
+        clientRef.current = null;
+      }
+    };
+    effect();
+  };
 
   return (
     <div className="w-full bg-gray-800 rounded-lg overflow-hidden">
       {error ? (
-        <div className="p-8 text-center text-red-500">
-          <p>{error}</p>
+        <div className="text-red-500 p-4 bg-gray-900 rounded-lg">
+          <p className="mb-4">{error}</p>
+          <button
+            onClick={handleRetry}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white"
+          >
+            Try Again
+          </button>
         </div>
       ) : (
         <div>
