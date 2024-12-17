@@ -4,7 +4,6 @@ import type { IAgoraRTCClient, IAgoraRTC } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/lib/StreamStore';
 import { useStreamStore } from '@/lib/StreamStore';
 
-
 // Initialize AgoraRTC only on the client side
 let AgoraRTC: IAgoraRTC;
 if (typeof window !== 'undefined') {
@@ -27,14 +26,20 @@ const CONNECTION_TIMEOUT = 15000; // 15 seconds timeout
 const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
+  const connectionStateRef = useRef<'connecting' | 'connected' | 'failed'>('connecting');
   const [error, setError] = useState<string>('');
   const [connectionState, setConnectionState] = useState<'connecting' | 'connected' | 'failed'>('connecting');
   
+  // Update ref whenever state changes
+  useEffect(() => {
+    connectionStateRef.current = connectionState;
+  }, [connectionState]);
+  
   const store = useStreamStore();
-  const isStreamHost = store((state) => state.isStreamHost);
+  const isStreamHost = store((state) => state.isStreamHost(stream.id));
 
   useEffect(() => {
-    if (isStreamHost(stream.id)) {
+    if (isStreamHost) {
       setError('Cannot view your own stream as a viewer');
       return;
     }
@@ -65,7 +70,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
 
         // Set up connection timeout
         connectionTimeout = setTimeout(() => {
-          if (connectionState === 'connecting') {
+          if (connectionStateRef.current === 'connecting') {
             setError('Connection timeout - please try again');
             setConnectionState('failed');
             cleanup();
@@ -92,34 +97,20 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         }
 
         // Set up handlers before joining
-        client.on("connection-state-change", (curState, prevState) => {
-          console.log("[StreamViewer] Connection state:", prevState, "->", curState);
-          if (!isSubscribed) return;
-          
-          switch (curState) {
-            case "CONNECTED":
+        if (isSubscribed) {  // Only set up handlers if still mounted
+          client.on("connection-state-change", (curState, prevState) => {
+            console.log("[StreamViewer] Connection state:", prevState, "->", curState);
+            
+            if (curState === "CONNECTED") {
               setConnectionState('connected');
               clearTimeout(connectionTimeout);
-              break;
-            case "DISCONNECTED":
+            } else if (curState === "DISCONNECTED") {
               setConnectionState('failed');
-              break;
-            default:
+            } else {
               setConnectionState('connecting');
-          }
-        });
+            }
+          });
 
-        console.log('[StreamViewer] Joining channel:', {
-          appId: data.appId.slice(0, 4) + '...',
-          channel: stream.id,
-          uid: data.uid
-        });
-
-        clientRef.current = client;
-        await client.join(data.appId, stream.id, data.token, data.uid);
-        console.log('[StreamViewer] Join successful');
-
-        if (isSubscribed) {
           client.on("user-published", async (user, mediaType) => {
             console.log('[StreamViewer] User published:', { uid: user.uid, mediaType });
             
@@ -142,7 +133,15 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
           });
         }
 
-        setConnectionState('connected');
+        console.log('[StreamViewer] Joining channel:', {
+          appId: data.appId.slice(0, 4) + '...',
+          channel: stream.id,
+          uid: data.uid
+        });
+
+        clientRef.current = client;
+        await client.join(data.appId, stream.id, data.token, data.uid);
+        console.log('[StreamViewer] Join successful');
         
       } catch (err) {
         console.error('[StreamViewer] Connection error:', err);
@@ -156,10 +155,24 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       clearTimeout(connectionTimeout);
       if (clientRef.current) {
         try {
+          // Unsubscribe from all remote users first
+          clientRef.current.remoteUsers.forEach((user) => {
+            if (user.hasVideo) {
+              user.videoTrack?.stop();
+            }
+            if (user.hasAudio) {
+              user.audioTrack?.stop();
+            }
+          });
+          
+          // Remove all event listeners
           clientRef.current.removeAllListeners();
+          
+          // Leave the channel if connected
           if (clientRef.current.connectionState === 'CONNECTED') {
             await clientRef.current.leave();
           }
+          
           clientRef.current = null;
         } catch (err) {
           console.error('[StreamViewer] Cleanup error:', err);
@@ -177,7 +190,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       isSubscribed = false;
       cleanup();
     };
-  }, [stream.id, isStreamHost, connectionState]);
+  }, [stream.id, isStreamHost]);
 
   // Retry mechanism
   const handleRetry = () => {
