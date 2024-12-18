@@ -40,6 +40,7 @@ export class RedisManager {
   }
 
   async updatePreview(streamId: string, previewUrl: string): Promise<void> {
+    console.log(`Redis: Updating preview for stream ${streamId}`);
     const streamData = await this.redis.hget('streams', streamId);
     if (streamData) {
       const stream = JSON.parse(streamData);
@@ -47,6 +48,9 @@ export class RedisManager {
       stream.previewLastUpdated = Date.now();
       stream.previewError = false;
       await this.redis.hset('streams', streamId, JSON.stringify(stream));
+      console.log(`Redis: Preview updated successfully for stream ${streamId}`);
+    } else {
+      console.log(`Redis: No stream found with ID ${streamId}`);
     }
   }
 

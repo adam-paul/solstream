@@ -129,11 +129,13 @@ const createStore = () =>
         });
 
         socketService.onPreviewUpdated(({ streamId, previewUrl }) => {
+          console.log(`Store: Received preview update for stream ${streamId}`);
           set((state) => ({
             streams: state.streams.map(stream =>
               stream.id === streamId ? { ...stream, previewUrl, previewError: false } : stream
             )
           }));
+          console.log(`Store: Updated preview for stream ${streamId}`);
         });
 
         socketService.onError((error) => {
