@@ -245,16 +245,15 @@ class SocketService {
     event: T,
     callback: SocketEvents[T]
   ): () => void {
-    if (!this.socket) {
+    if (!this.socket?.connected) {
       throw new Error('Socket not initialized');
     }
-
+    
     this.socket.on(event, callback as any);
     const listeners = this.eventListeners.get(event) || new Set();
     listeners.add(callback);
     this.eventListeners.set(event, listeners);
 
-    // Return cleanup function
     return () => {
       if (this.socket) {
         this.socket.off(event, callback as any);
@@ -286,6 +285,13 @@ class SocketService {
     
     this.updateConnectionStatus('disconnected');
     this.eventListeners.clear();
+  }
+
+  private async ensureConnection() {
+    if (!this.socket?.connected) {
+      await this.connect();
+    }
+    return this.socket!;
   }
 }
 

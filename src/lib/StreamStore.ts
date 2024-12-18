@@ -102,20 +102,29 @@ const useStreamStore = create<StreamState>()((set, get) => ({
   // State synchronization
   initializeStore: async () => {
     try {
+      // First connect socket
+      await socketService.connect();
+      
+      // Then sync with backend
       await get().syncWithBackend();
       
-      // Set up socket listeners
-      socketService.onStreamStarted((stream) => get()._handleStreamStarted(stream));
-      socketService.onStreamEnded((id) => get()._handleStreamEnded(id));
-      socketService.onViewerCountUpdated(({ streamId, count }) => 
-        get()._handleViewerCountUpdated(streamId, count)
-      );
-      socketService.onPreviewUpdated(({ streamId, previewUrl }) => 
-        get()._handlePreviewUpdated(streamId, previewUrl)
-      );
-      socketService.onError((error) => 
-        console.error('Socket error:', error)
-      );
+      try {
+        // Now set up socket listeners
+        socketService.onStreamStarted((stream) => get()._handleStreamStarted(stream));
+        socketService.onStreamEnded((id) => get()._handleStreamEnded(id));
+        socketService.onViewerCountUpdated(({ streamId, count }) => 
+          get()._handleViewerCountUpdated(streamId, count)
+        );
+        socketService.onPreviewUpdated(({ streamId, previewUrl }) => 
+          get()._handlePreviewUpdated(streamId, previewUrl)
+        );
+        socketService.onError((error) => 
+          console.error('Socket error:', error)
+        );
+      } catch (error) {
+        console.error('Failed to set up socket listeners:', error);
+        throw error;
+      }
 
       set({ isInitialized: true });
     } catch (error) {
