@@ -71,6 +71,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
       // Convert to data URL with reduced quality
       const previewUrl = canvas.toDataURL('image/jpeg', 0.5);
+      console.log('Preview captured and being sent:', previewUrl.substring(0, 50) + '...');
       socketService.updatePreview(streamId, previewUrl);
 
       // Clean up

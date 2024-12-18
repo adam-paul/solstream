@@ -10,7 +10,6 @@ interface StreamTileProps {
 
 const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
   const hasPreview = Boolean(stream.previewUrl && !stream.previewError);
-  const defaultThumbnail = "/api/placeholder/400/300"; // Fallback thumbnail
   
   return (
     <div 
@@ -21,25 +20,19 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
         {hasPreview ? (
           // Live preview
           <Image
-            src={stream.previewUrl || defaultThumbnail}
+            src={stream.previewUrl!}
             alt={`${stream.title} preview`}
             fill
             className="object-cover"
           />
-        ) : stream.previewError ? (
-          // Error state
+        ) : (
+          // Error or no preview state
           <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center text-gray-500">
             <EyeOff size={24} className="mb-2" />
-            <span className="text-sm">Preview Unavailable</span>
+            <span className="text-sm">
+              {stream.previewError ? 'Preview Unavailable' : 'Stream Preview Loading'}
+            </span>
           </div>
-        ) : (
-          // Default thumbnail
-          <Image
-            src={stream.thumbnail || defaultThumbnail}
-            alt={stream.title}
-            fill
-            className="object-cover"
-          />
         )}
         
         {/* Live indicator */}
