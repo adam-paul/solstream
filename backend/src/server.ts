@@ -202,6 +202,7 @@ io.on('connection', (socket) => {
 
   socket.on('updatePreview', async ({ streamId, previewUrl }: { streamId: string; previewUrl: string }) => {
     console.log(`[Preview Update] Received for stream ${streamId} from user ${userId}`);
+    socket.emit('message', `[Preview Update] Received for stream ${streamId} from user ${userId}`);
     try {
       // Verify the user is the stream creator
       const stream = await redisManager.getStream(streamId);
