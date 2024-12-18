@@ -1,10 +1,13 @@
+// src/components/ui/StreamCreationModal.tsx
+
 import React, { useState, useRef } from 'react';
 import { Upload } from 'lucide-react';
+import { Stream } from '@/types/stream';
 
 interface StreamCreationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartStream: (title: string, description: string, ticker: string) => void;
+  onStartStream: (input: Pick<Stream, 'title' | 'ticker' | 'coinAddress'>) => void;
 }
 
 const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
@@ -12,12 +15,12 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
   onClose,
   onStartStream,
 }) => {
-  const [showMoreOptions, setShowMoreOptions] = useState(false);
-  const [streamTitle, setStreamTitle] = useState('');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [ticker, setTicker] = useState('');
   const [coinAddress, setCoinAddress] = useState('');
-  const [description, setDescription] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [showMoreOptions, setShowMoreOptions] = useState(false);
   const [twitterLink, setTwitterLink] = useState('');
   const [telegramLink, setTelegramLink] = useState('');
   const [website, setWebsite] = useState('');
@@ -25,6 +28,27 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+      
+    onStartStream({
+      title,
+      ticker,
+      coinAddress
+    });
+  
+    // Reset form
+    setTitle('');
+    setDescription('');
+    setTicker('');
+    setCoinAddress('');
+    setSelectedImage(null);
+    setTwitterLink('');
+    setTelegramLink('');
+    setWebsite('');
+    setShowMoreOptions(false);
+  };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
@@ -36,24 +60,6 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
     if (e.target.files && e.target.files[0]) {
       setSelectedImage(e.target.files[0]);
     }
-  };
-
-  const resetForm = () => {
-    setStreamTitle('');
-    setTicker('');
-    setCoinAddress('');
-    setDescription('');
-    setSelectedImage(null);
-    setTwitterLink('');
-    setTelegramLink('');
-    setWebsite('');
-    setShowMoreOptions(false);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onStartStream(streamTitle, description, ticker);
-    resetForm();
   };
 
   return (
@@ -76,10 +82,10 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
             <label className="text-blue-400 block">stream title</label>
             <input
               type="text"
-              value={streamTitle}
-              onChange={(e) => setStreamTitle(e.target.value)}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-
+              required
             />
           </div>
 

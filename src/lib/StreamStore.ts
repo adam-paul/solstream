@@ -1,3 +1,5 @@
+// src/lib/StreamStore.ts
+
 import { create } from 'zustand';
 import { socketService } from './socketService';
 import { sessionManager } from './sessionManager';
@@ -9,14 +11,14 @@ interface StreamState {
   streams: Stream[];
   activeStreams: Set<string>;
   currentUserRole: UserRole;
-  userHostedStreams: Set<string>;  // Track streams user is hosting
+  userHostedStreams: Set<string>;
   
   // Role management
   setUserRole: (streamId: string, role: UserRole) => void;
   isStreamHost: (streamId: string) => boolean;
   
-  // Existing methods
-  addStream: (stream: Omit<Stream, 'id' | 'createdAt' | 'viewers'>) => Stream;
+  // Stream management
+  addStream: (streamData: Omit<Stream, 'id'>) => Stream;
   removeStream: (id: string) => void;
   updateViewerCount: (id: string, count: number) => void;
   getStream: (id: string) => Stream | undefined;
@@ -26,7 +28,7 @@ interface StreamState {
   initializeWebSocket: () => void;
 }
 
-// Add an initialized flag to prevent multiple initializations
+// Initialized flag to prevent multiple initializations
 let isWebSocketInitialized = false;
 
 const createStore = () => 
@@ -57,20 +59,77 @@ const createStore = () =>
       return stream?.creator === currentUserId;
     },
 
+    addStream: (streamData: Omit<Stream, 'id'>) => {
+      const newStream = {
+        ...streamData,
+        id: `stream-${crypto.randomUUID()}`
+      };
+
+      set((state) => ({
+        streams: [...state.streams, newStream],
+        userHostedStreams: new Set(state.userHostedStreams).add(newStream.id)
+      }));
+
+      return newStream;
+    },
+
+    removeStream: (id: string) => {
+      socketService.endStream(id);
+      set((state) => ({
+        streams: state.streams.filter(stream => stream.id !== id),
+        activeStreams: new Set([...state.activeStreams].filter(streamId => streamId !== id)),
+        userHostedStreams: new Set([...state.userHostedStreams].filter(streamId => streamId !== id))
+      }));
+    },
+
+    updateViewerCount: (id: string, count: number) => {
+      socketService.updateViewerCount(id, count);
+      set((state) => ({
+        streams: state.streams.map(stream =>
+          stream.id === id ? { ...stream, viewers: count } : stream
+        ),
+      }));
+    },
+
+    getStream: (id: string) => get().streams.find(s => s.id === id),
+    
+    startStream: (id: string) => {
+      const stream = get().getStream(id);
+      if (stream) {
+        socketService.startStream(stream);
+        set((state) => ({
+          activeStreams: new Set(state.activeStreams).add(id),
+          userHostedStreams: new Set(state.userHostedStreams).add(id)
+        }));
+      }
+    },
+    
+    endStream: (id: string) => {
+      socketService.endStream(id);
+      set((state) => {
+        const newActiveStreams = new Set(state.activeStreams);
+        const newHostedStreams = new Set(state.userHostedStreams);
+        newActiveStreams.delete(id);
+        newHostedStreams.delete(id);
+        return {
+          activeStreams: newActiveStreams,
+          userHostedStreams: newHostedStreams,
+          streams: state.streams.filter(s => s.id !== id)
+        };
+      });
+    },
+    
+    isStreamActive: (id: string) => get().activeStreams.has(id),
+
     initializeWebSocket: () => {
       if (isWebSocketInitialized) {
-        console.log('WebSocket already initialized');
         return;
       }
-      
-      console.log('Initializing WebSocket connection...');
       
       try {
         const socket = socketService.connect();
         
-        // Add a specific handler for stream state sync
         socket.on('connect', async () => {
-          console.log('Connected to WebSocket server');
           try {
             const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`);
             const streams = await response.json();
@@ -83,17 +142,8 @@ const createStore = () =>
           }
         });
         
-        // Clean up any existing listeners first
-        socketService.removeListener('streamStarted', () => {});
-        socketService.removeListener('streamEnded', () => {});
-        socketService.removeListener('viewerJoined', () => {});
-        socketService.removeListener('viewerLeft', () => {});
-        socketService.removeListener('error', () => {});
-        
         socketService.onStreamStarted((stream) => {
-          console.log('Received new stream:', stream);
           set((state) => {
-            // Check if stream already exists
             if (state.streams.some(s => s.id === stream.id)) {
               return state;
             }
@@ -112,15 +162,7 @@ const createStore = () =>
           }));
         });
 
-        socketService.onViewerJoined(({ streamId, count }) => {
-          set((state) => ({
-            streams: state.streams.map(stream =>
-              stream.id === streamId ? { ...stream, viewers: count } : stream
-            )
-          }));
-        });
-
-        socketService.onViewerLeft(({ streamId, count }) => {
+        socketService.onViewerCountUpdated(({ streamId, count }) => {
           set((state) => ({
             streams: state.streams.map(stream =>
               stream.id === streamId ? { ...stream, viewers: count } : stream
@@ -129,38 +171,12 @@ const createStore = () =>
         });
 
         socketService.onPreviewUpdated(({ streamId, previewUrl }) => {
-          console.log(`Store: Received preview update for stream ${streamId}`);
           set((state) => ({
             streams: state.streams.map(stream =>
               stream.id === streamId ? { ...stream, previewUrl, previewError: false } : stream
             )
           }));
-          console.log(`Store: Updated preview for stream ${streamId}`);
         });
-
-        socketService.onError((error) => {
-          console.error('Socket error:', error.message);
-        });
-
-        // Initial fetch of active streams with error handling
-        fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`)
-          .then(res => {
-            if (!res.ok) {
-              throw new Error(`HTTP error! status: ${res.status}`);
-            }
-            return res.json();
-          })
-          .then(streams => {
-            set({ 
-              streams,
-              activeStreams: new Set(streams.map((s: Stream) => s.id))
-            });
-          })
-          .catch(err => {
-            console.error('Error fetching streams:', err);
-            // Set empty state on error
-            set({ streams: [], activeStreams: new Set() });
-          });
 
         isWebSocketInitialized = true;
       } catch (error) {
@@ -168,74 +184,6 @@ const createStore = () =>
         isWebSocketInitialized = false;
       }
     },
-
-    addStream: (streamData) => {
-      const newStream = {
-        ...streamData,
-        id: `stream-${crypto.randomUUID()}`,
-        createdAt: new Date().toISOString(),
-        viewers: 0,
-        hostId: sessionManager.getUserId(),
-        previewUrl: undefined,
-        previewLastUpdated: undefined,
-        previewError: false
-      };
-
-      set((state) => ({
-        streams: [...state.streams, newStream],
-        userHostedStreams: new Set(state.userHostedStreams).add(newStream.id)
-      }));
-
-      return newStream;
-    },
-
-    removeStream: (id) => {
-      socketService.endStream(id);
-      set((state) => ({
-        streams: state.streams.filter(stream => stream.id !== id),
-        activeStreams: new Set([...state.activeStreams].filter(streamId => streamId !== id)),
-        userHostedStreams: new Set([...state.userHostedStreams].filter(streamId => streamId !== id))
-      }));
-    },
-
-    updateViewerCount: (id, count) => {
-      socketService.updateViewerCount(id, count);
-      set((state) => ({
-        streams: state.streams.map(stream =>
-          stream.id === id ? { ...stream, viewers: count } : stream
-        ),
-      }));
-    },
-
-    getStream: (id) => get().streams.find(s => s.id === id),
-    
-    startStream: (id) => {
-      const stream = get().getStream(id);
-      if (stream) {
-        socketService.startStream(stream);
-        set((state) => ({
-          activeStreams: new Set(state.activeStreams).add(id),
-          userHostedStreams: new Set(state.userHostedStreams).add(id)
-        }));
-      }
-    },
-    
-    endStream: (id) => {
-      socketService.endStream(id);
-      set((state) => {
-        const newActiveStreams = new Set(state.activeStreams);
-        const newHostedStreams = new Set(state.userHostedStreams);
-        newActiveStreams.delete(id);
-        newHostedStreams.delete(id);
-        return {
-          activeStreams: newActiveStreams,
-          userHostedStreams: newHostedStreams,
-          streams: state.streams.filter(s => s.id !== id)
-        };
-      });
-    },
-    
-    isStreamActive: (id) => get().activeStreams.has(id),
   }));
 
 let store: ReturnType<typeof createStore> | undefined;
@@ -249,4 +197,4 @@ export const useStreamStore = () => {
     store = createStore();
   }
   return store;
-}
+};

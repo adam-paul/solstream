@@ -1,3 +1,4 @@
+// src/components/ui/SolstreamUI.tsx
 'use client'
 
 import Image from 'next/image';
@@ -8,6 +9,8 @@ import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
 import { useStreamStore } from '@/lib/StreamStore';
 import { sessionManager } from '@/lib/sessionManager';
+import { Stream } from '@/types/stream';
+import { createStream } from '@/lib/streamFactory';
 
 // Mock activity data
 const mockActivity = [
@@ -35,21 +38,17 @@ const SolstreamUI: React.FC = () => {
     initializeWebSocket();
   }, [initializeWebSocket]);
   
-  const handleStartStream = (title: string, description: string, ticker: string) => {
-    const sessionId = sessionManager.getUserId(); // Get actual session ID
-    const streamData = {
-      title,
-      description,
-      ticker,
-      creator: sessionId, // Use session ID as creator
-      marketCap: '0',
-      thumbnail: "/api/placeholder/400/300"
-    };
-    
-    const newStream = addStream(streamData);
-    startStream(newStream.id);
-    setShowStreamModal(false);
-    router.push(`/stream/${newStream.id}`);
+  const handleStartStream = (input: Pick<Stream, 'title' | 'ticker' | 'coinAddress'>) => {
+    try {
+      const creator = sessionManager.getUserId();
+      const streamData = createStream(input, creator);
+      const newStream = addStream(streamData);
+      startStream(newStream.id);
+      setShowStreamModal(false);
+      router.push(`/stream/${newStream.id}`);
+    } catch (error) {
+      console.error('Failed to start stream:', error);
+    }
   };
 
   const handleStreamSelect = (streamId: string) => {
@@ -65,7 +64,6 @@ const SolstreamUI: React.FC = () => {
       return;
     }
 
-    // Check if user is the host before routing
     router.push(`/stream/${streamId}`);
   };
 

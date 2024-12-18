@@ -7,9 +7,9 @@ export interface Stream {
   marketCap: string;
   viewers: number;
   thumbnail: string;
-  ticker?: string;
+  ticker: string;
+  coinAddress: string;
   description?: string;
-  hostId?: string;
   previewUrl?: string;
   previewLastUpdated?: number;
   previewError?: boolean;

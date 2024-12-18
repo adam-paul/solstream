@@ -1,4 +1,5 @@
-// backend/src/types.ts
+// src/types/stream.ts
+
 export interface Stream {
   id: string;
   title: string;
@@ -7,7 +8,8 @@ export interface Stream {
   marketCap: string;
   viewers: number;
   thumbnail: string;
-  ticker?: string;
+  ticker: string;
+  coinAddress: string;
   description?: string;
   previewUrl?: string;
   previewLastUpdated?: number;
