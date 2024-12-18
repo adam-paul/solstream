@@ -1,5 +1,5 @@
 import { io, Socket } from 'socket.io-client';
-import type { Stream } from './StreamStore';
+import { Stream } from '@/types/stream';
 import { sessionManager } from './sessionManager';
 
 class SocketService {
@@ -62,6 +62,14 @@ class SocketService {
 
   updateViewerCount(streamId: string, count: number) {
     this.socket?.emit('updateViewerCount', { streamId, count });
+  }
+
+  updatePreview(streamId: string, previewUrl: string) {
+    this.socket?.emit('updatePreview', { streamId, previewUrl });
+  }
+
+  onPreviewUpdated(callback: (data: { streamId: string; previewUrl: string }) => void) {
+    this.socket?.on('previewUpdated', callback);
   }
 
   // Event Listeners

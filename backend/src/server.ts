@@ -199,6 +199,34 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('updatePreview', async ({ streamId, previewUrl }: { streamId: string; previewUrl: string }) => {
+    try {
+      // Verify the user is the stream creator
+      const stream = await redisManager.getStream(streamId);
+      if (!stream || stream.creator !== userId) {
+        socket.emit('error', { message: 'Unauthorized to update preview' });
+        return;
+      }
+
+      // Store the preview
+      await redisManager.updatePreview(streamId, previewUrl);
+      
+      // Broadcast preview update to all clients
+      io.emit('previewUpdated', { streamId, previewUrl });
+    } catch (error) {
+      console.error('Error updating preview:', error);
+      socket.emit('error', { message: 'Failed to update preview' });
+      
+      try {
+        // Mark preview as errored in Redis
+        await redisManager.setPreviewError(streamId);
+        io.emit('previewError', { streamId });
+      } catch (innerError) {
+        console.error('Error setting preview error state:', innerError);
+      }
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('Client disconnected:', socket.id);
     if (userId) {

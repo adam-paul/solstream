@@ -1,7 +1,7 @@
 // src/components/ui/StreamViewer.tsx
 import React, { useEffect, useRef, useState } from 'react';
 import type { IAgoraRTCClient, IAgoraRTC } from 'agora-rtc-sdk-ng';
-import type { Stream } from '@/lib/StreamStore';
+import type { Stream } from '@/types/stream';
 import { useStreamStore } from '@/lib/StreamStore';
 
 // Initialize AgoraRTC only on the client side

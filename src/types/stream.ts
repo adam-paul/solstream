@@ -1,4 +1,4 @@
-// backend/src/types.ts
+// src/types/stream.ts
 export interface Stream {
   id: string;
   title: string;
@@ -9,13 +9,20 @@ export interface Stream {
   thumbnail: string;
   ticker?: string;
   description?: string;
+  hostId?: string;
   previewUrl?: string;
   previewLastUpdated?: number;
   previewError?: boolean;
 }
 
-// Error states for preview
 export enum PreviewError {
   UNAVAILABLE = 'UNAVAILABLE',
   FAILED = 'FAILED'
+}
+
+// Preview configuration types
+export interface PreviewConfig {
+  initialDelay: number;  // milliseconds before first preview
+  updateInterval: number;  // milliseconds between preview updates
+  compressionQuality?: number;  // 0-1 for image quality
 }

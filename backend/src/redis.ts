@@ -39,6 +39,27 @@ export class RedisManager {
     }
   }
 
+  async updatePreview(streamId: string, previewUrl: string): Promise<void> {
+    const streamData = await this.redis.hget('streams', streamId);
+    if (streamData) {
+      const stream = JSON.parse(streamData);
+      stream.previewUrl = previewUrl;
+      stream.previewLastUpdated = Date.now();
+      stream.previewError = false;
+      await this.redis.hset('streams', streamId, JSON.stringify(stream));
+    }
+  }
+
+  async setPreviewError(streamId: string): Promise<void> {
+    const streamData = await this.redis.hget('streams', streamId);
+    if (streamData) {
+      const stream = JSON.parse(streamData);
+      stream.previewError = true;
+      stream.previewUrl = undefined;
+      await this.redis.hset('streams', streamId, JSON.stringify(stream));
+    }
+  }
+
   async getStream(streamId: string): Promise<Stream | null> {
     const streamData = await this.redis.hget('streams', streamId);
     return streamData ? JSON.parse(streamData) : null;

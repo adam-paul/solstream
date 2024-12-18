@@ -2,6 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack, IAgoraRTC } from 'agora-rtc-sdk-ng';
 import { useStreamStore } from '@/lib/StreamStore';
+import { socketService } from '@/lib/socketService';
+import { DEFAULT_PREVIEW_CONFIG } from '@/config/preview';
 
 // Initialize AgoraRTC only on the client side
 let AgoraRTC: IAgoraRTC;
@@ -24,6 +26,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     videoTrack: ICameraVideoTrack | null;
     audioTrack: IMicrophoneAudioTrack | null;
   }>({ videoTrack: null, audioTrack: null });
+  const previewIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const [error, setError] = useState<string>('');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -36,9 +39,56 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   
   const stream = getStream(streamId);
 
+  // Preview capture function
+  const capturePreview = async () => {
+    try {
+      if (!localTracksRef.current.videoTrack || !videoRef.current) {
+        console.warn('Video track or ref not available for preview capture');
+        return;
+      }
+
+      // Create a canvas element
+      const canvas = document.createElement('canvas');
+      const video = videoRef.current.querySelector('video');
+      
+      if (!video) {
+        console.warn('Video element not found');
+        return;
+      }
+
+      // Set canvas size to match video dimensions
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // Draw the current video frame to canvas
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.warn('Could not get canvas context');
+        return;
+      }
+
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // Convert to data URL with reduced quality
+      const previewUrl = canvas.toDataURL('image/jpeg', 0.5);
+      socketService.updatePreview(streamId, previewUrl);
+
+      // Clean up
+      canvas.remove();
+    } catch (err) {
+      console.error('Failed to capture preview:', err);
+    }
+  };
+
   // Cleanup function
   const cleanup = async () => {
     try {
+      // Clear preview interval if it exists
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+        previewIntervalRef.current = null;
+      }
+
       // Clean up tracks
       if (localTracksRef.current.videoTrack) {
         localTracksRef.current.videoTrack.stop();
@@ -159,6 +209,18 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
         setIsInitialized(true);
 
+        // Set up preview capture after initial delay
+        setTimeout(async () => {
+          // Capture initial preview
+          await capturePreview();
+          
+          // Set up interval for subsequent captures
+          previewIntervalRef.current = setInterval(
+            capturePreview,
+            DEFAULT_PREVIEW_CONFIG.updateInterval
+          );
+        }, DEFAULT_PREVIEW_CONFIG.initialDelay);
+
       } catch (err) {
         if (isSubscribed) {
           const errorMessage = err instanceof Error ? err.message : 'Failed to start stream';
@@ -173,6 +235,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       isSubscribed = false;
       cleanup();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stream, streamId, updateViewerCount, isHost]);
 
   if (!stream || !isHost) {

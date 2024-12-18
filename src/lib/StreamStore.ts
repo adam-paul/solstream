@@ -1,19 +1,7 @@
 import { create } from 'zustand';
 import { socketService } from './socketService';
 import { sessionManager } from './sessionManager';
-
-export interface Stream {
-  id: string;
-  title: string;
-  creator: string;
-  createdAt: string;
-  marketCap: string;
-  viewers: number;
-  thumbnail: string;
-  ticker?: string;
-  description?: string;
-  hostId?: string;  // Add this to track stream owner
-}
+import { Stream } from '@/types/stream';
 
 type UserRole = 'host' | 'viewer' | null;
 
@@ -136,6 +124,14 @@ const createStore = () =>
           set((state) => ({
             streams: state.streams.map(stream =>
               stream.id === streamId ? { ...stream, viewers: count } : stream
+            )
+          }));
+        });
+
+        socketService.onPreviewUpdated(({ streamId, previewUrl }) => {
+          set((state) => ({
+            streams: state.streams.map(stream =>
+              stream.id === streamId ? { ...stream, previewUrl, previewError: false } : stream
             )
           }));
         });
