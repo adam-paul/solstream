@@ -82,21 +82,9 @@ class StreamServer {
   }
 
   private setupMiddleware() {
-    const corsOptions = {
-      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        if (!origin || this.allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      exposedHeaders: ['Access-Control-Allow-Origin']
-    };
-
-    this.app.use(cors(corsOptions));
+    this.io = new Server(this.httpServer, {
+      transports: ['websocket']
+    });
   }
 
   private setupSocketServer() {
@@ -104,12 +92,12 @@ class StreamServer {
   }
 
   private setupRoutes() {
-    // Health check endpoint
+    // Health check endpoint - no CORS middleware
     this.app.get('/health', (_, res) => {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
     });
 
-    // Get all streams endpoint
+    // Get all streams endpoint - no CORS middleware
     this.app.get('/api/streams', async (_, res) => {
       try {
         const streams = await this.redisManager.getAllStreams();
