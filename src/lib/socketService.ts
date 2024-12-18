@@ -17,6 +17,7 @@ class SocketService {
 
   connect() {
     if (!this.socket) {
+      console.log('Initializing socket connection...');
       // Include userId in connection query
       this.socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001', {
         transports: ['websocket'],
@@ -32,6 +33,10 @@ class SocketService {
 
       this.socket.on('connect_error', (error) => {
         console.error('WebSocket connection error:', error);
+      });
+
+      this.socket.onAny((event, ...args) => {
+        console.log('Socket event received:', event, args);
       });
 
       // Handle role-related errors

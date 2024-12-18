@@ -200,19 +200,21 @@ io.on('connection', (socket) => {
   });
 
   socket.on('updatePreview', async ({ streamId, previewUrl }: { streamId: string; previewUrl: string }) => {
+    console.log(`[Preview Update] Received for stream ${streamId} from user ${userId}`);
     try {
-      console.log(`Preview update received for stream ${streamId}`);
       // Verify the user is the stream creator
       const stream = await redisManager.getStream(streamId);
+      console.log('[Preview Update] Current stream data:', stream);
+      
       if (!stream || stream.creator !== userId) {
-        console.log(`Preview update unauthorized: creator: ${stream?.creator}, userId: ${userId}`);
+        console.log(`[Preview Update] Auth failed - creator: ${stream?.creator}, userId: ${userId}`);
         socket.emit('error', { message: 'Unauthorized to update preview' });
         return;
       }
 
       // Store the preview
       await redisManager.updatePreview(streamId, previewUrl);
-      console.log(`Preview stored in Redis for stream ${streamId}`);
+      console.log('[Preview Update] Stored in Redis');
       
       // Broadcast preview update to all clients
       io.emit('previewUpdated', { streamId, previewUrl });
