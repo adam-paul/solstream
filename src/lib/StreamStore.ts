@@ -1,200 +1,291 @@
 // src/lib/StreamStore.ts
 
+import React from 'react';
 import { create } from 'zustand';
 import { socketService } from './socketService';
 import { sessionManager } from './sessionManager';
 import { Stream } from '@/types/stream';
 
+interface StreamMetadata {
+  lastUpdated: number;
+  syncStatus: 'synced' | 'pending' | 'error';
+  error?: string;
+}
+
 type UserRole = 'host' | 'viewer' | null;
 
 interface StreamState {
-  streams: Stream[];
+  streams: Map<string, Stream>;
+  metadata: Map<string, StreamMetadata>;
   activeStreams: Set<string>;
-  currentUserRole: UserRole;
-  userHostedStreams: Set<string>;
+  isInitialized: boolean;
+  userRoles: Map<string, UserRole>; // Maps streamId to user's role in that stream
   
-  // Role management
-  setUserRole: (streamId: string, role: UserRole) => void;
+  // Core state accessors
+  getStream: (id: string) => Stream | undefined;
+  getAllStreams: () => Stream[];
+  getActiveStreams: () => Stream[];
+  isStreamActive: (id: string) => boolean;
   isStreamHost: (streamId: string) => boolean;
   
-  // Stream management
-  addStream: (streamData: Omit<Stream, 'id'>) => Stream;
-  removeStream: (id: string) => void;
-  updateViewerCount: (id: string, count: number) => void;
-  getStream: (id: string) => Stream | undefined;
-  startStream: (id: string) => void;
+  // Role management
+  getUserRole: (streamId: string) => UserRole;
+  setUserRole: (streamId: string, role: UserRole) => void;
+  getHostedStreams: () => Stream[];
+  
+  // State synchronization
+  initializeStore: () => Promise<void>;
+  syncWithBackend: () => Promise<void>;
+  
+  // Stream actions - these now only trigger socket events
+  startStream: (streamData: Omit<Stream, 'id'>) => void;
   endStream: (id: string) => void;
-  isStreamActive: (id: string) => boolean;
-  initializeWebSocket: () => void;
+  updateViewerCount: (id: string, count: number) => void;
+  updatePreview: (id: string, previewUrl: string) => void;
+  
+  // Internal state handlers - called by socket events
+  _handleStreamStarted: (stream: Stream) => void;
+  _handleStreamEnded: (id: string) => void;
+  _handleViewerCountUpdated: (id: string, count: number) => void;
+  _handlePreviewUpdated: (id: string, previewUrl: string) => void;
+  _handleError: (id: string, error: string) => void;
 }
 
-// Initialized flag to prevent multiple initializations
-let isWebSocketInitialized = false;
+const useStreamStore = create<StreamState>()((set, get) => ({
+  streams: new Map(),
+  metadata: new Map(),
+  activeStreams: new Set(),
+  userRoles: new Map(),
+  isInitialized: false,
 
-const createStore = () => 
-  create<StreamState>((set, get) => ({
-    streams: [],
-    activeStreams: new Set(),
-    currentUserRole: null,
-    userHostedStreams: new Set(),
-
-    setUserRole: (streamId: string, role: UserRole) => {
-      set((state) => {
-        const newHostedStreams = new Set(state.userHostedStreams);
-        if (role === 'host') {
-          newHostedStreams.add(streamId);
-        } else {
-          newHostedStreams.delete(streamId);
-        }
-        return {
-          currentUserRole: role,
-          userHostedStreams: newHostedStreams,
-        };
-      });
-    },
-
-    isStreamHost: (streamId: string) => {
-      const stream = get().streams.find(s => s.id === streamId);
-      const currentUserId = sessionManager.getUserId();
-      return stream?.creator === currentUserId;
-    },
-
-    addStream: (streamData: Omit<Stream, 'id'>) => {
-      const newStream = {
-        ...streamData,
-        id: `stream-${crypto.randomUUID()}`
-      };
-
-      set((state) => ({
-        streams: [...state.streams, newStream],
-        userHostedStreams: new Set(state.userHostedStreams).add(newStream.id)
-      }));
-
-      return newStream;
-    },
-
-    removeStream: (id: string) => {
-      socketService.endStream(id);
-      set((state) => ({
-        streams: state.streams.filter(stream => stream.id !== id),
-        activeStreams: new Set([...state.activeStreams].filter(streamId => streamId !== id)),
-        userHostedStreams: new Set([...state.userHostedStreams].filter(streamId => streamId !== id))
-      }));
-    },
-
-    updateViewerCount: (id: string, count: number) => {
-      socketService.updateViewerCount(id, count);
-      set((state) => ({
-        streams: state.streams.map(stream =>
-          stream.id === id ? { ...stream, viewers: count } : stream
-        ),
-      }));
-    },
-
-    getStream: (id: string) => get().streams.find(s => s.id === id),
-    
-    startStream: (id: string) => {
-      const stream = get().getStream(id);
-      if (stream) {
-        socketService.startStream(stream);
-        set((state) => ({
-          activeStreams: new Set(state.activeStreams).add(id),
-          userHostedStreams: new Set(state.userHostedStreams).add(id)
-        }));
-      }
-    },
-    
-    endStream: (id: string) => {
-      socketService.endStream(id);
-      set((state) => {
-        const newActiveStreams = new Set(state.activeStreams);
-        const newHostedStreams = new Set(state.userHostedStreams);
-        newActiveStreams.delete(id);
-        newHostedStreams.delete(id);
-        return {
-          activeStreams: newActiveStreams,
-          userHostedStreams: newHostedStreams,
-          streams: state.streams.filter(s => s.id !== id)
-        };
-      });
-    },
-    
-    isStreamActive: (id: string) => get().activeStreams.has(id),
-
-    initializeWebSocket: () => {
-      if (isWebSocketInitialized) {
-        return;
-      }
-      
-      try {
-        const socket = socketService.connect();
-        
-        socket.on('connect', async () => {
-          try {
-            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`);
-            const streams = await response.json();
-            set({ 
-              streams,
-              activeStreams: new Set(streams.map((s: Stream) => s.id))
-            });
-          } catch (error) {
-            console.error('Error fetching initial streams:', error);
-          }
-        });
-        
-        socketService.onStreamStarted((stream) => {
-          set((state) => {
-            if (state.streams.some(s => s.id === stream.id)) {
-              return state;
-            }
-            return {
-              streams: [...state.streams, stream],
-              activeStreams: new Set(state.activeStreams).add(stream.id)
-            };
-          });
-        });
-
-        socketService.onStreamEnded((streamId) => {
-          set((state) => ({
-            streams: state.streams.filter(s => s.id !== streamId),
-            activeStreams: new Set([...state.activeStreams].filter(id => id !== streamId)),
-            userHostedStreams: new Set([...state.userHostedStreams].filter(id => id !== streamId))
-          }));
-        });
-
-        socketService.onViewerCountUpdated(({ streamId, count }) => {
-          set((state) => ({
-            streams: state.streams.map(stream =>
-              stream.id === streamId ? { ...stream, viewers: count } : stream
-            )
-          }));
-        });
-
-        socketService.onPreviewUpdated(({ streamId, previewUrl }) => {
-          set((state) => ({
-            streams: state.streams.map(stream =>
-              stream.id === streamId ? { ...stream, previewUrl, previewError: false } : stream
-            )
-          }));
-        });
-
-        isWebSocketInitialized = true;
-      } catch (error) {
-        console.error('Error initializing WebSocket:', error);
-        isWebSocketInitialized = false;
-      }
-    },
-  }));
-
-let store: ReturnType<typeof createStore> | undefined;
-
-export const useStreamStore = () => {
-  if (typeof window === 'undefined') {
-    return createStore();
-  }
+  // Core state accessors
+  getStream: (id) => get().streams.get(id),
   
-  if (!store) {
-    store = createStore();
+  getAllStreams: () => Array.from(get().streams.values()),
+  
+  getActiveStreams: () => (
+    Array.from(get().activeStreams)
+      .map(id => get().streams.get(id))
+      .filter((stream): stream is Stream => stream !== undefined)
+  ),
+  
+  isStreamActive: (id) => get().activeStreams.has(id),
+  
+  isStreamHost: (streamId) => {
+    const stream = get().streams.get(streamId);
+    return stream ? stream.creator === sessionManager.getUserId() : false;
+  },
+
+  getUserRole: (streamId) => {
+    return get().userRoles.get(streamId) || null;
+  },
+
+  setUserRole: (streamId, role) => {
+    set(state => {
+      const newRoles = new Map(state.userRoles);
+      if (role === null) {
+        newRoles.delete(streamId);
+      } else {
+        newRoles.set(streamId, role);
+      }
+      return { userRoles: newRoles };
+    });
+  },
+
+  getHostedStreams: () => {
+    const state = get();
+    return Array.from(state.streams.values()).filter(stream => 
+      state.userRoles.get(stream.id) === 'host' || stream.creator === sessionManager.getUserId()
+    );
+  },
+
+  // State synchronization
+  initializeStore: async () => {
+    try {
+      await get().syncWithBackend();
+      
+      // Set up socket listeners
+      socketService.onStreamStarted((stream) => get()._handleStreamStarted(stream));
+      socketService.onStreamEnded((id) => get()._handleStreamEnded(id));
+      socketService.onViewerCountUpdated(({ streamId, count }) => 
+        get()._handleViewerCountUpdated(streamId, count)
+      );
+      socketService.onPreviewUpdated(({ streamId, previewUrl }) => 
+        get()._handlePreviewUpdated(streamId, previewUrl)
+      );
+      socketService.onError((error) => 
+        console.error('Socket error:', error)
+      );
+
+      set({ isInitialized: true });
+    } catch (error) {
+      console.error('Failed to initialize store:', error);
+      throw error;
+    }
+  },
+
+  syncWithBackend: async () => {
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`
+      );
+      if (!response.ok) throw new Error('Failed to fetch streams');
+      
+      const streams: Stream[] = await response.json();
+      const now = Date.now();
+
+      set(state => {
+        const newStreams = new Map(state.streams);
+        const newMetadata = new Map(state.metadata);
+        const newActiveStreams = new Set<string>();
+
+        streams.forEach(stream => {
+          newStreams.set(stream.id, stream);
+          newMetadata.set(stream.id, {
+            lastUpdated: now,
+            syncStatus: 'synced'
+          });
+          newActiveStreams.add(stream.id);
+        });
+
+        return {
+          streams: newStreams,
+          metadata: newMetadata,
+          activeStreams: newActiveStreams
+        };
+      });
+    } catch (error) {
+      console.error('Backend sync failed:', error);
+      throw error;
+    }
+  },
+
+  // Stream actions
+  startStream: (streamData) => {
+    const stream = {
+      ...streamData,
+      id: `stream-${crypto.randomUUID()}`
+    };
+    // Set role before emitting socket event
+    get().setUserRole(stream.id, 'host');
+    socketService.startStream(stream);
+  },
+
+  endStream: (id) => {
+    socketService.endStream(id);
+  },
+
+  updateViewerCount: (id, count) => {
+    socketService.updateViewerCount(id, count);
+  },
+
+  updatePreview: (id, previewUrl) => {
+    socketService.updatePreview(id, previewUrl);
+  },
+
+  // Internal state handlers
+  _handleStreamStarted: (stream) => {
+    set(state => {
+      const newStreams = new Map(state.streams);
+      const newMetadata = new Map(state.metadata);
+      const newActiveStreams = new Set(state.activeStreams);
+
+      newStreams.set(stream.id, stream);
+      newMetadata.set(stream.id, {
+        lastUpdated: Date.now(),
+        syncStatus: 'synced'
+      });
+      newActiveStreams.add(stream.id);
+
+      return {
+        streams: newStreams,
+        metadata: newMetadata,
+        activeStreams: newActiveStreams
+      };
+    });
+  },
+
+  _handleStreamEnded: (id) => {
+    set(state => {
+      const newStreams = new Map(state.streams);
+      const newMetadata = new Map(state.metadata);
+      const newActiveStreams = new Set(state.activeStreams);
+      const newUserRoles = new Map(state.userRoles);
+
+      newStreams.delete(id);
+      newMetadata.delete(id);
+      newActiveStreams.delete(id);
+      newUserRoles.delete(id);
+
+      return {
+        streams: newStreams,
+        metadata: newMetadata,
+        activeStreams: newActiveStreams,
+        userRoles: newUserRoles
+      };
+    });
+  },
+
+  _handleViewerCountUpdated: (id, count) => {
+    set(state => {
+      const newStreams = new Map(state.streams);
+      const stream = newStreams.get(id);
+      
+      if (stream) {
+        newStreams.set(id, { ...stream, viewers: count });
+        return { streams: newStreams };
+      }
+      return state;
+    });
+  },
+
+  _handlePreviewUpdated: (id, previewUrl) => {
+    set(state => {
+      const newStreams = new Map(state.streams);
+      const stream = newStreams.get(id);
+      
+      if (stream) {
+        newStreams.set(id, { 
+          ...stream, 
+          previewUrl,
+          previewLastUpdated: Date.now(),
+          previewError: false
+        });
+        return { streams: newStreams };
+      }
+      return state;
+    });
+  },
+
+  _handleError: (id, error) => {
+    set(state => {
+      const newMetadata = new Map(state.metadata);
+      const streamMetadata = newMetadata.get(id);
+      
+      if (streamMetadata) {
+        newMetadata.set(id, {
+          ...streamMetadata,
+          syncStatus: 'error',
+          error
+        });
+        return { metadata: newMetadata };
+      }
+      return state;
+    });
   }
+}));
+
+// Export a wrapper that ensures initialization
+export const useInitializedStreamStore = () => {
+  const store = useStreamStore();
+  
+  React.useEffect(() => {
+    if (!store.isInitialized) {
+      store.initializeStore().catch(console.error);
+    }
+  }, [store, store.isInitialized]);
+
   return store;
 };
+
+export { useStreamStore };

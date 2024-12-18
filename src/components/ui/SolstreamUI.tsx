@@ -2,15 +2,12 @@
 'use client'
 
 import Image from 'next/image';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
-import { useStreamStore } from '@/lib/StreamStore';
-import { sessionManager } from '@/lib/sessionManager';
-import { Stream } from '@/types/stream';
-import { createStream } from '@/lib/streamFactory';
+import { useInitializedStreamStore } from '@/lib/StreamStore';
 
 // Mock activity data
 const mockActivity = [
@@ -25,47 +22,29 @@ const SolstreamUI: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
 
-  // Get store methods
-  const store = useStreamStore();
-  const initializeWebSocket = store((state) => state.initializeWebSocket);
-  const streams = store((state) => state.streams);
-  const addStream = store((state) => state.addStream);
-  const startStream = store((state) => state.startStream);
-  const isStreamActive = store((state) => state.isStreamActive);
+  // Use initialized store hook
+  const {
+    getActiveStreams,
+    isStreamActive,
+    isInitialized
+  } = useInitializedStreamStore();
 
-  // Initialize WebSocket connection
-  useEffect(() => {
-    initializeWebSocket();
-  }, [initializeWebSocket]);
-  
-  const handleStartStream = (input: Pick<Stream, 'title' | 'ticker' | 'coinAddress'>) => {
-    try {
-      const creator = sessionManager.getUserId();
-      const streamData = createStream(input, creator);
-      const newStream = addStream(streamData);
-      startStream(newStream.id);
-      setShowStreamModal(false);
-      router.push(`/stream/${newStream.id}`);
-    } catch (error) {
-      console.error('Failed to start stream:', error);
-    }
+  // Navigation handlers
+  const handleStreamCreated = (streamId: string) => {
+    setShowStreamModal(false);
+    router.push(`/stream/${streamId}`);
   };
 
   const handleStreamSelect = (streamId: string) => {
-    const stream = streams.find(s => s.id === streamId);
-    
-    if (!stream) {
-      console.error('Stream not found');
-      return;
-    }
-
     if (!isStreamActive(streamId)) {
       console.error('Stream is not active');
       return;
     }
-
     router.push(`/stream/${streamId}`);
   };
+
+  // Get all active streams
+  const streams = getActiveStreams();
 
   // Sort streams based on selected criteria
   const sortedStreams = [...streams].sort((a, b) => {
@@ -79,14 +58,12 @@ const SolstreamUI: React.FC = () => {
     }
   });
 
-  // Filter streams based on search query and active status
-  const filteredStreams = sortedStreams
-    .filter(stream => isStreamActive(stream.id))
-    .filter(stream =>
-      stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      stream.ticker?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      stream.creator.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+  // Filter streams based on search query
+  const filteredStreams = sortedStreams.filter(stream =>
+    stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    stream.ticker?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    stream.creator.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Featured stream is the active one with the most viewers
   const featuredStream = filteredStreams.length > 0 
@@ -94,6 +71,15 @@ const SolstreamUI: React.FC = () => {
         current.viewers > prev.viewers ? current : prev
       )
     : null;
+
+  // Show loading state if store isn't initialized
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
+        <p className="text-xl">Loading streams...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
@@ -122,7 +108,7 @@ const SolstreamUI: React.FC = () => {
         <StreamCreationModal
           isOpen={showStreamModal}
           onClose={() => setShowStreamModal(false)}
-          onStartStream={handleStartStream}
+          onStreamCreated={handleStreamCreated}
         />
 
         {/* Featured Stream */}

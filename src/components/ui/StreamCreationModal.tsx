@@ -1,20 +1,24 @@
 // src/components/ui/StreamCreationModal.tsx
+'use client'
 
 import React, { useState, useRef } from 'react';
 import { Upload } from 'lucide-react';
-import { Stream } from '@/types/stream';
+import { useInitializedStreamStore } from '@/lib/StreamStore';
+import { sessionManager } from '@/lib/sessionManager';
+import { createStream } from '@/lib/streamFactory';
 
 interface StreamCreationModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onStartStream: (input: Pick<Stream, 'title' | 'ticker' | 'coinAddress'>) => void;
+  onStreamCreated: (streamId: string) => void;
 }
 
 const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
   isOpen,
   onClose,
-  onStartStream,
+  onStreamCreated,
 }) => {
+  // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [ticker, setTicker] = useState('');
@@ -26,28 +30,48 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
   const [website, setWebsite] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { startStream } = useInitializedStreamStore();
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    try {
+      // Generate stream ID
+      const streamId = `stream-${crypto.randomUUID()}`;
       
-    onStartStream({
-      title,
-      ticker,
-      coinAddress
-    });
-  
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setTicker('');
-    setCoinAddress('');
-    setSelectedImage(null);
-    setTwitterLink('');
-    setTelegramLink('');
-    setWebsite('');
-    setShowMoreOptions(false);
+      // Create the stream data
+      const streamData = {
+        ...createStream({
+          title,
+          ticker,
+          coinAddress,
+        }, sessionManager.getUserId()),
+        id: streamId,
+        description: description || undefined
+      };
+
+      // Initiate stream creation through StreamStore
+      startStream(streamData);
+      
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setTicker('');
+      setCoinAddress('');
+      setSelectedImage(null);
+      setTwitterLink('');
+      setTelegramLink('');
+      setWebsite('');
+      setShowMoreOptions(false);
+
+      // Notify parent of successful creation
+      onStreamCreated(streamId);
+    } catch (error) {
+      console.error('Failed to create stream:', error);
+      // Note: Error handling is managed by StreamStore
+    }
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {

@@ -1,14 +1,15 @@
 // src/components/ui/StreamComponent.tsx
+'use client'
+
 import React, { useRef, useEffect, useState } from 'react';
-import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack, IAgoraRTC } from 'agora-rtc-sdk-ng';
-import { useStreamStore } from '@/lib/StreamStore';
-import { socketService } from '@/lib/socketService';
+import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
+import { useInitializedStreamStore } from '@/lib/StreamStore';
 import { DEFAULT_PREVIEW_CONFIG } from '@/config/preview';
 
 // Initialize AgoraRTC only on the client side
-let AgoraRTC: IAgoraRTC;
+let AgoraRTC: any;
 if (typeof window !== 'undefined') {
-  AgoraRTC = require('agora-rtc-sdk-ng');
+  AgoraRTC = require('agora-rtc-sdk-ng').default;
 }
 
 interface StreamComponentProps {
@@ -20,99 +21,104 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   streamId,
   onClose,
 }) => {
+  // Refs for video and track management
   const videoRef = useRef<HTMLDivElement>(null);
   const clientRef = useRef<IAgoraRTCClient | null>(null);
-  const localTracksRef = useRef<{
+  const tracksRef = useRef<{
     videoTrack: ICameraVideoTrack | null;
     audioTrack: IMicrophoneAudioTrack | null;
   }>({ videoTrack: null, audioTrack: null });
+  
+  // Preview management
   const previewIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Local state
   const [error, setError] = useState<string>('');
   const [isInitialized, setIsInitialized] = useState(false);
   
-  const store = useStreamStore();
-  const getStream = store((state) => state.getStream);
-  const updateViewerCount = store((state) => state.updateViewerCount);
-  const endStream = store((state) => state.endStream);
-  const isHost = store((state) => state.isStreamHost(streamId));
+  // Get store methods
+  const {
+    getStream,
+    endStream,
+    updatePreview,
+    isStreamHost
+  } = useInitializedStreamStore();
   
   const stream = getStream(streamId);
 
-  // Preview capture function
-  const capturePreview = async () => {
+  // Preview capture
+  const capturePreview = React.useCallback(async () => {
     try {
-      if (!localTracksRef.current.videoTrack || !videoRef.current) {
-        console.warn('Video track or ref not available for preview capture');
+      if (!tracksRef.current.videoTrack || !videoRef.current) {
+        console.warn('[StreamComponent] Video track or ref not available for preview');
         return;
       }
-  
+
       const canvas = document.createElement('canvas');
       const video = videoRef.current.querySelector('video');
       
       if (!video) {
-        console.warn('Video element not found');
+        console.warn('[StreamComponent] Video element not found');
         return;
       }
-  
-      // Reduce the dimensions significantly
-      const scaleFactor = 0.25; // Reduce to 25% of original size
+
+      // Set dimensions with scale factor for performance
+      const scaleFactor = 0.25;
       canvas.width = video.videoWidth * scaleFactor;
       canvas.height = video.videoHeight * scaleFactor;
-  
+
       const ctx = canvas.getContext('2d');
       if (!ctx) {
-        console.warn('Could not get canvas context');
+        console.warn('[StreamComponent] Could not get canvas context');
         return;
       }
-  
-      // Draw at reduced size
+
+      // Draw scaled video frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-      // Use much higher compression
-      const previewUrl = canvas.toDataURL('image/jpeg', 0.1); // Reduce quality to 10%
-      console.log('Preview captured, length:', previewUrl.length);
+
+      // Compress preview
+      const previewUrl = canvas.toDataURL('image/jpeg', 0.1);
       
-      if (previewUrl.length > 100000) { // If still too large
-        console.warn('Preview too large, skipping update');
+      if (previewUrl.length > 100000) {
+        console.warn('[StreamComponent] Preview too large, skipping update');
         return;
       }
-  
-      socketService.updatePreview(streamId, previewUrl);
+
+      updatePreview(streamId, previewUrl);
       canvas.remove();
     } catch (err) {
-      console.error('Failed to capture preview:', err);
+      console.error('[StreamComponent] Failed to capture preview:', err);
     }
-  };
+  }, [streamId, updatePreview]);
 
   // Cleanup function
   const cleanup = async () => {
+    console.log('[StreamComponent] Starting cleanup...');
+    
     try {
-      // Clear preview interval if it exists
+      // Clear preview interval
       if (previewIntervalRef.current) {
         clearInterval(previewIntervalRef.current);
         previewIntervalRef.current = null;
       }
 
       // Clean up tracks
-      if (localTracksRef.current.videoTrack) {
-        localTracksRef.current.videoTrack.stop();
-        await localTracksRef.current.videoTrack.close();
+      if (tracksRef.current.videoTrack) {
+        tracksRef.current.videoTrack.stop();
+        await tracksRef.current.videoTrack.close();
       }
       
-      if (localTracksRef.current.audioTrack) {
-        localTracksRef.current.audioTrack.stop();
-        await localTracksRef.current.audioTrack.close();
+      if (tracksRef.current.audioTrack) {
+        tracksRef.current.audioTrack.stop();
+        await tracksRef.current.audioTrack.close();
       }
 
       // Clean up client
       if (clientRef.current) {
-        // Remove all event listeners
         clientRef.current.removeAllListeners();
         
-        // Unpublish and leave if connected
-        if (clientRef.current.connectionState === 'CONNECTED') {
-          const tracks = [localTracksRef.current.audioTrack, localTracksRef.current.videoTrack]
+        if (clientRef.current?.connectionState === 'CONNECTED') {
+          const tracks = [tracksRef.current.audioTrack, tracksRef.current.videoTrack]
             .filter((track): track is ICameraVideoTrack | IMicrophoneAudioTrack => track !== null);
           
           if (tracks.length > 0) {
@@ -123,25 +129,28 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       }
 
       // Reset refs
-      localTracksRef.current = { videoTrack: null, audioTrack: null };
+      tracksRef.current = { videoTrack: null, audioTrack: null };
       clientRef.current = null;
+      
+      console.log('[StreamComponent] Cleanup completed');
     } catch (err) {
-      console.error('Error during cleanup:', err);
+      console.error('[StreamComponent] Error during cleanup:', err);
       setError('Failed to clean up stream resources');
     }
   };
 
+  // Handle stream end
   const handleEndStream = async () => {
     await cleanup();
     endStream(streamId);
     onClose();
-    window.location.href = '/';
   };
 
+  // Initialize stream
   useEffect(() => {
-    let isSubscribed = true;
+    let isMounted = true;
 
-    if (typeof window === 'undefined' || !AgoraRTC || !stream || !isHost) {
+    if (typeof window === 'undefined' || !AgoraRTC || !stream || !isStreamHost(streamId)) {
       return;
     }
 
@@ -153,6 +162,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
     const initStream = async () => {
       try {
+        console.log('[StreamComponent] Initializing stream...');
+        
+        // Create and configure client
         if (!clientRef.current) {
           const client = AgoraRTC.createClient({ 
             mode: "live", 
@@ -160,21 +172,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
             role: "host"
           });
           clientRef.current = client;
-
-          client.on("user-joined", () => {
-            if (isSubscribed && clientRef.current) {
-              updateViewerCount(streamId, clientRef.current.remoteUsers.length + 1);
-            }
-          });
-
-          client.on("user-left", () => {
-            if (isSubscribed && clientRef.current) {
-              updateViewerCount(streamId, clientRef.current.remoteUsers.length + 1);
-            }
-          });
         }
 
-        // Get token from our API
+        // Get token
         const response = await fetch(`/api/agora-token?channel=${streamId}`);
         if (!response.ok) {
           throw new Error('Failed to fetch token');
@@ -185,50 +185,52 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
           throw new Error('Failed to generate token');
         }
 
-        await clientRef.current.join(
+        // Join channel
+        await clientRef.current!.join(
           AGORA_APP_ID,
           streamId,
           token,
           uid
         );
 
-        // Create and initialize tracks
+        // Create tracks
         const [audioTrack, videoTrack] = await Promise.all([
           AgoraRTC.createMicrophoneAudioTrack(),
           AgoraRTC.createCameraVideoTrack()
         ]);
 
-        if (!isSubscribed) return;
+        if (!isMounted) return;
 
-        localTracksRef.current = {
+        tracksRef.current = {
           audioTrack,
           videoTrack
         };
 
         // Publish tracks
-        await clientRef.current.publish([audioTrack, videoTrack]);
+        await clientRef.current!.publish([audioTrack, videoTrack]);
 
         if (videoRef.current) {
           videoTrack.play(videoRef.current);
         }
 
         setIsInitialized(true);
+        console.log('[StreamComponent] Stream initialized successfully');
 
-        // Set up preview capture after initial delay
+        // Set up preview capture
         setTimeout(async () => {
-          // Capture initial preview
-          await capturePreview();
-          
-          // Set up interval for subsequent captures
-          previewIntervalRef.current = setInterval(
-            capturePreview,
-            DEFAULT_PREVIEW_CONFIG.updateInterval
-          );
+          if (isMounted) {
+            await capturePreview();
+            previewIntervalRef.current = setInterval(
+              capturePreview,
+              DEFAULT_PREVIEW_CONFIG.updateInterval
+            );
+          }
         }, DEFAULT_PREVIEW_CONFIG.initialDelay);
 
       } catch (err) {
-        if (isSubscribed) {
+        if (isMounted) {
           const errorMessage = err instanceof Error ? err.message : 'Failed to start stream';
+          console.error('[StreamComponent] Initialization error:', errorMessage);
           setError(errorMessage);
         }
       }
@@ -237,13 +239,13 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     initStream();
 
     return () => {
-      isSubscribed = false;
+      isMounted = false;
       cleanup();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stream, streamId, updateViewerCount, isHost]);
+  }, [stream, streamId, isStreamHost, updatePreview, capturePreview]);
 
-  if (!stream || !isHost) {
+  // Verify host status
+  if (!stream || !isStreamHost(streamId)) {
     return null;
   }
 
@@ -263,7 +265,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       </div>
       
       {error ? (
-        <div className="text-red-500 p-4 bg-gray-900 rounded-lg">{error}</div>
+        <div className="text-red-500 p-4 bg-gray-900 rounded-lg">
+          {error}
+        </div>
       ) : (
         <>
           <div 
