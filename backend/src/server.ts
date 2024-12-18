@@ -43,7 +43,8 @@ const io = new Server(httpServer, {
     methods: ['GET', 'POST'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
-  }
+  },
+  transports: ['websocket']
 });
 
 const redisManager = new RedisManager();
