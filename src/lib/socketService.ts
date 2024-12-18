@@ -70,7 +70,9 @@ class SocketService {
   }
 
   updatePreview(streamId: string, previewUrl: string) {
+    console.log(`[SocketService] Emitting updatePreview for stream ${streamId}`);
     this.socket?.emit('updatePreview', { streamId, previewUrl });
+    console.log('[SocketService] Emit complete');
   }
 
   onPreviewUpdated(callback: (data: { streamId: string; previewUrl: string }) => void) {

@@ -258,6 +258,10 @@ io.on('connection', (socket) => {
   socket.on('error', (error) => {
     console.error('Socket error:', error);
   });
+
+  socket.onAny((event, ...args) => {
+    console.log('Received socket event:', event, args.length > 0 ? 'with data' : 'no data');
+  });
 });
 
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
