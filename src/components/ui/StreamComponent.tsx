@@ -46,8 +46,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         console.warn('Video track or ref not available for preview capture');
         return;
       }
-
-      // Create a canvas element
+  
       const canvas = document.createElement('canvas');
       const video = videoRef.current.querySelector('video');
       
@@ -55,26 +54,31 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         console.warn('Video element not found');
         return;
       }
-
-      // Set canvas size to match video dimensions
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-
-      // Draw the current video frame to canvas
+  
+      // Reduce the dimensions significantly
+      const scaleFactor = 0.25; // Reduce to 25% of original size
+      canvas.width = video.videoWidth * scaleFactor;
+      canvas.height = video.videoHeight * scaleFactor;
+  
       const ctx = canvas.getContext('2d');
       if (!ctx) {
         console.warn('Could not get canvas context');
         return;
       }
-
+  
+      // Draw at reduced size
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Convert to data URL with reduced quality
-      const previewUrl = canvas.toDataURL('image/jpeg', 0.5);
-      console.log('Preview captured and being sent:', previewUrl.substring(0, 50) + '...');
+  
+      // Use much higher compression
+      const previewUrl = canvas.toDataURL('image/jpeg', 0.1); // Reduce quality to 10%
+      console.log('Preview captured, length:', previewUrl.length);
+      
+      if (previewUrl.length > 100000) { // If still too large
+        console.warn('Preview too large, skipping update');
+        return;
+      }
+  
       socketService.updatePreview(streamId, previewUrl);
-
-      // Clean up
       canvas.remove();
     } catch (err) {
       console.error('Failed to capture preview:', err);
