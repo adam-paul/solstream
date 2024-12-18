@@ -44,27 +44,33 @@ class StreamServer {
   private io: Server<ClientToServerEvents, ServerToClientEvents>;
   private redisManager: RedisManager;
   private connectedUsers: Map<string, UserState>;
-  private readonly allowedOrigins: string[];
+  private readonly allowedOrigins = [
+    'https://solstream.fun',
+    'https://www.solstream.fun',
+    'https://api.solstream.fun',
+    'http://localhost:3000'
+  ];
 
   constructor() {
     this.app = express();
     this.httpServer = createServer(this.app);
     this.redisManager = new RedisManager();
     this.connectedUsers = new Map();
-    
-    this.allowedOrigins = [
-      'https://solstream.fun',
-      'https://www.solstream.fun',
-      'https://api.solstream.fun',
-      'http://localhost:3000'
-    ];
 
-    // Initialize Socket.IO with CORS config before setting up handlers
+    // Initialize Socket.IO with CORS config
     this.io = new Server(this.httpServer, {
       cors: {
-        origin: this.allowedOrigins,
-        methods: ['GET', 'POST'],
-        credentials: true
+        origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+          if (!origin || this.allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        exposedHeaders: ['Access-Control-Allow-Origin']
       },
       transports: ['websocket']
     });
@@ -76,8 +82,8 @@ class StreamServer {
   }
 
   private setupMiddleware() {
-    this.app.use(cors({
-      origin: (origin, callback) => {
+    const corsOptions = {
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         if (!origin || this.allowedOrigins.includes(origin)) {
           callback(null, true);
         } else {
@@ -88,9 +94,9 @@ class StreamServer {
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
       exposedHeaders: ['Access-Control-Allow-Origin']
-    }));
+    };
 
-    this.app.options('*', cors());
+    this.app.use(cors(corsOptions));
   }
 
   private setupSocketServer() {
@@ -98,11 +104,13 @@ class StreamServer {
   }
 
   private setupRoutes() {
+    // Health check endpoint
     this.app.get('/health', (_, res) => {
-      res.json({ status: 'ok' });
+      res.json({ status: 'ok', timestamp: new Date().toISOString() });
     });
 
-    this.app.get('/api/streams', cors(), async (_, res) => {
+    // Get all streams endpoint
+    this.app.get('/api/streams', async (_, res) => {
       try {
         const streams = await this.redisManager.getAllStreams();
         res.json(streams);
@@ -116,7 +124,20 @@ class StreamServer {
   private setupErrorHandling() {
     this.app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
       console.error('Unhandled error:', err);
-      res.status(500).json({ error: 'Internal server error' });
+      res.status(500).json({ 
+        error: 'Internal server error',
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    process.on('unhandledRejection', (reason, promise) => {
+      console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    });
+
+    process.on('uncaughtException', (error) => {
+      console.error('Uncaught Exception:', error);
+      // Gracefully shutdown on uncaught exceptions
+      this.shutdown().catch(console.error);
     });
   }
 
@@ -124,7 +145,10 @@ class StreamServer {
     const userId = socket.handshake.query.userId as string;
     
     if (!userId) {
-      socket.emit('error', { message: 'User ID required' });
+      socket.emit('error', { 
+        message: 'User ID required',
+        timestamp: new Date().toISOString()
+      });
       socket.disconnect();
       return;
     }
@@ -150,7 +174,6 @@ class StreamServer {
             throw new Error('Unauthorized to start this stream');
           }
 
-          // Add stream and update roles atomically
           await Promise.all([
             this.redisManager.addStream(stream),
             this.redisManager.updateStreamRole(stream.id, userId, 'host')
@@ -161,7 +184,6 @@ class StreamServer {
 
         } catch (error) {
           this.handleError(socket, error);
-          // Attempt cleanup if stream was partially created
           try {
             await this.redisManager.removeStream(stream.id);
           } catch (cleanupError) {
@@ -172,10 +194,7 @@ class StreamServer {
 
       endStream: async (streamId: string) => {
         try {
-          const [stream, metadata] = await Promise.all([
-            this.redisManager.getStream(streamId),
-            this.redisManager.getStreamMetadata(streamId)
-          ]);
+          const stream = await this.redisManager.getStream(streamId);
 
           if (!stream) {
             throw new Error('Stream not found');
@@ -185,7 +204,6 @@ class StreamServer {
             throw new Error('Unauthorized to end this stream');
           }
 
-          // Remove stream, metadata, and notify all users
           await Promise.all([
             this.redisManager.removeStream(streamId),
             ...Array.from(this.connectedUsers.entries())
@@ -205,10 +223,7 @@ class StreamServer {
 
       joinStream: async (streamId: string) => {
         try {
-          const [stream, metadata] = await Promise.all([
-            this.redisManager.getStream(streamId),
-            this.redisManager.getStreamMetadata(streamId)
-          ]);
+          const stream = await this.redisManager.getStream(streamId);
 
           if (!stream) {
             throw new Error('Stream not found');
@@ -216,10 +231,6 @@ class StreamServer {
 
           if (stream.creator === userId) {
             throw new Error('Cannot view your own stream');
-          }
-
-          if (metadata?.roleMap[userId] === 'host') {
-            throw new Error('Host cannot join as viewer');
           }
 
           await this.redisManager.updateStreamRole(streamId, userId, 'viewer');
@@ -327,7 +338,6 @@ class StreamServer {
   }
 
   private cleanupStream(streamId: string) {
-    // Remove all users from the stream
     this.connectedUsers.forEach((state, userId) => {
       if (state.streams.has(streamId)) {
         this.removeUserFromStream(userId, streamId);
@@ -340,7 +350,6 @@ class StreamServer {
     if (!userState) return;
 
     try {
-      // Process each stream the user was part of
       await Promise.all(Array.from(userState.streams).map(async (streamId) => {
         const role = userState.roles.get(streamId);
         
@@ -387,7 +396,6 @@ class StreamServer {
     if (error instanceof Error) {
       message = error.message;
       
-      // Map specific errors to status codes/messages
       if (message.includes('Unauthorized')) {
         statusCode = 403;
       } else if (message.includes('not found')) {
@@ -413,6 +421,23 @@ class StreamServer {
       statusCode,
       timestamp: new Date().toISOString()
     });
+  }
+
+  async shutdown() {
+    console.log('Server shutting down...');
+    
+    // Close all socket connections
+    this.io.sockets.sockets.forEach((socket) => {
+      socket.disconnect(true);
+    });
+
+    // Close Redis connection
+    await this.redisManager.shutdown();
+
+    // Close HTTP server
+    this.httpServer.close();
+
+    console.log('Server shutdown complete');
   }
 
   public start(port: number = 3001) {
