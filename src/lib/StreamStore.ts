@@ -175,7 +175,10 @@ const createStore = () =>
         id: `stream-${crypto.randomUUID()}`,
         createdAt: new Date().toISOString(),
         viewers: 0,
-        hostId: sessionManager.getUserId()
+        hostId: sessionManager.getUserId(),
+        previewUrl: undefined,
+        previewLastUpdated: undefined,
+        previewError: false
       };
 
       set((state) => ({
