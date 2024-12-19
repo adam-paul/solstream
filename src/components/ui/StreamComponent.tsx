@@ -138,6 +138,8 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
   // Initialize Agora client
   const initializeAgora = React.useCallback(async () => {
+    console.log('[StreamComponent] Starting initialization');
+    console.log('[StreamComponent] Current stream:', stream);
     if (!stream || !AgoraRTC) {
       throw new Error('Stream or AgoraRTC not available');
     }
@@ -217,7 +219,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
         // Wait for stream confirmation
         const confirmStream = new Promise<void>((resolve, reject) => {
+          console.log('[StreamComponent] Waiting for stream confirmation');
           const onStreamStarted = (confirmedStream: any) => {
+            console.log('[StreamComponent] Stream confirmation received:', confirmedStream);
             if (confirmedStream.id === streamId) {
               socketService.onStreamStarted(onStreamStarted); // Cleanup listener
               resolve();
