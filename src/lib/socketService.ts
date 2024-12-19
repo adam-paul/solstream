@@ -34,7 +34,7 @@ interface ConnectionStatus {
   reconnectAttempt?: number;
 }
 
-class SocketService {
+export class SocketService {
   private socket: Socket | null = null;
   private static instance: SocketService;
   private connectionStatus: ConnectionStatus = { state: 'disconnected' };
@@ -322,6 +322,22 @@ class SocketService {
       await this.connect();
     }
     return this.socket!;
+  }
+
+  // Add the on method
+  on(event: string, callback: (...args: any[]) => void): void {
+    if (!this.socket) {
+      throw new Error('Socket not initialized');
+    }
+    this.socket.on(event, callback);
+  }
+
+  // Add the off method for cleanup
+  off(event: string, callback: (...args: any[]) => void): void {
+    if (!this.socket) {
+      throw new Error('Socket not initialized');
+    }
+    this.socket.off(event, callback);
   }
 }
 
