@@ -49,6 +49,9 @@ interface StreamState {
   _handleViewerCountUpdated: (id: string, count: number) => void;
   _handlePreviewUpdated: (id: string, previewUrl: string) => void;
   _handleError: (id: string, error: string) => void;
+  
+  // New method to handle actual broadcast when going live
+  broadcastStream: (streamId: string) => Promise<string>;
 }
 
 const useStreamStore = create<StreamState>()((set, get) => ({
@@ -172,48 +175,22 @@ const useStreamStore = create<StreamState>()((set, get) => ({
   // Stream actions
   startStream: async (streamData) => {
     const streamId = `stream-${crypto.randomUUID()}`;
-    const stream = {
+    
+    // Set role immediately for local state
+    get().setUserRole(streamId, 'host');
+
+    // Store the stream in local state
+    get()._handleStreamStarted({
       ...streamData,
       id: streamId,
-    };
-
-    // Return a promise that resolves when the stream is confirmed started
-    return new Promise((resolve, reject) => {
-      // Set up a one-time listener for stream start confirmation
-      const onStreamStarted = (confirmedStream: Stream) => {
-        if (confirmedStream.id === streamId) {
-          // Clean up listener
-          socketService.onStreamStarted(onStreamStarted);
-          resolve(streamId);
-        }
-      };
-
-      // Set up a one-time error listener
-      const onError = (error: { message: string }) => {
-        if (error.message.includes(streamId)) {
-          // Clean up listeners
-          socketService.onStreamStarted(onStreamStarted);
-          socketService.onError(onError);
-          reject(new Error(error.message));
-        }
-      };
-
-      // Add listeners
-      socketService.onStreamStarted(onStreamStarted);
-      socketService.onError(onError);
-
-      // Set role and emit socket event
-      get().setUserRole(streamId, 'host');
-      socketService.startStream(stream);
-
-      // Set up timeout to prevent hanging
-      setTimeout(() => {
-        // Clean up listeners
-        socketService.onStreamStarted(onStreamStarted);
-        socketService.onError(onError);
-        reject(new Error('Stream creation timed out'));
-      }, 10000); // 10 second timeout
+      viewers: 0,
+      previewUrl: '',
+      previewLastUpdated: Date.now(),
+      previewError: false
     });
+
+    // Don't emit socket event or set up listeners yet - this will be done when actually going live
+    return Promise.resolve(streamId);
   },
 
   endStream: (id) => {
@@ -316,6 +293,51 @@ const useStreamStore = create<StreamState>()((set, get) => ({
         return { metadata: newMetadata };
       }
       return state;
+    });
+  },
+
+  // New method to handle actual broadcast when going live
+  broadcastStream: async (streamId: string) => {
+    const stream = get().getStream(streamId);
+    if (!stream) {
+      throw new Error('Stream not found');
+    }
+
+    // Return a promise that resolves when the stream is confirmed started
+    return new Promise<string>((resolve, reject) => {
+      // Set up a one-time listener for stream start confirmation
+      const onStreamStarted = (confirmedStream: Stream) => {
+        if (confirmedStream.id === streamId) {
+          // Clean up listener
+          socketService.onStreamStarted(onStreamStarted);
+          resolve(streamId);
+        }
+      };
+
+      // Set up a one-time error listener
+      const onError = (error: { message: string }) => {
+        if (error.message.includes(streamId)) {
+          // Clean up listeners
+          socketService.onStreamStarted(onStreamStarted);
+          socketService.onError(onError);
+          reject(new Error(error.message));
+        }
+      };
+
+      // Add listeners
+      socketService.onStreamStarted(onStreamStarted);
+      socketService.onError(onError);
+
+      // Emit socket event to actually start broadcasting
+      socketService.startStream(stream);
+
+      // Set up timeout to prevent hanging
+      setTimeout(() => {
+        // Clean up listeners
+        socketService.onStreamStarted(onStreamStarted);
+        socketService.onError(onError);
+        reject(new Error('Stream broadcast timed out'));
+      }, 10000); // 10 second timeout
     });
   }
 }));

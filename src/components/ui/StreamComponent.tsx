@@ -29,6 +29,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   // State
   const [error, setError] = useState<string>('');
   const [streamState, setStreamState] = useState<StreamStateType>(StreamState.INITIALIZING);
+  const [isPreLaunch, setIsPreLaunch] = useState<boolean>(true);
   const [devices, setDevices] = useState<{
     cameras: MediaDeviceInfo[];
     microphones: MediaDeviceInfo[];
@@ -141,10 +142,12 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   // Handle stream start
   const startLiveStream = useCallback(async () => {
     try {
+      setIsPreLaunch(false);
       await streamLifecycle.startStream(streamId);
       startPreviewCaptures();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to start stream');
+      setIsPreLaunch(true);
     }
   }, [streamId, startPreviewCaptures]);
 
@@ -182,6 +185,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
         // Initialize stream
         await streamLifecycle.initializeStream(stream, videoRef.current, 'host');
+        setStreamState(StreamState.READY);
       } catch (error) {
         if (mountedRef.current) {
           setError(error instanceof Error ? error.message : 'Failed to initialize stream');
@@ -189,29 +193,29 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       }
     };
 
-    // Set up state change listener
-    const unsubscribe = streamLifecycle.onStateChange(streamId, (newState) => {
-      if (mountedRef.current) {
-        setStreamState(newState);
-        if (newState === StreamState.ERROR) {
-          const error = streamLifecycle.getError(streamId);
-          if (error) setError(error.message);
-        }
-      }
-    });
-
     initialize();
 
     // Cleanup on unmount
     return () => {
       mountedRef.current = false;
-      unsubscribe();
       if (previewIntervalRef.current) {
         clearInterval(previewIntervalRef.current);
       }
       streamLifecycle.cleanup(streamId).catch(console.error);
     };
   }, [stream, streamId]);
+
+  // Effect for preview captures - only start when not in pre-launch
+  useEffect(() => {
+    if (!isPreLaunch && streamState === StreamState.LIVE) {
+      startPreviewCaptures();
+    }
+    return () => {
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+      }
+    };
+  }, [isPreLaunch, streamState, startPreviewCaptures]);
 
   // Device change listener
   useEffect(() => {
@@ -235,7 +239,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   if (!stream) return null;
 
   const isInitializing = streamState === StreamState.INITIALIZING;
-  const isLive = streamState === StreamState.LIVE;
+  const isLive = streamState === StreamState.LIVE && !isPreLaunch;
 
   return (
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
@@ -249,14 +253,12 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         </div>
         
         <div className="flex gap-2">
-          {isLive && (
-            <button 
-              onClick={handleEndStream}
-              className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
-            >
-              End Stream
-            </button>
-          )}
+          <button 
+            onClick={handleEndStream}
+            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
+          >
+            End Stream
+          </button>
           {!isLive && streamState === StreamState.READY && (
             <button
               onClick={startLiveStream}

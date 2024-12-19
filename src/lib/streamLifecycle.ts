@@ -1,6 +1,7 @@
 import { agoraService } from './agoraService';
 import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/types/stream';
+import { useStreamStore } from '@/lib/StreamStore';
 
 export const StreamState = {
   INITIALIZING: 'initializing',
@@ -159,6 +160,10 @@ export class StreamLifecycleManager {
         if (context.client && tracks.length > 0) {
           await context.client.publish(tracks);
           this.setState(streamId, StreamState.LIVE);
+          
+          // Broadcast to server only when actually going live
+          const store = useStreamStore.getState();
+          await store.broadcastStream(streamId);
         } else {
           throw new Error('No tracks available to publish');
         }
