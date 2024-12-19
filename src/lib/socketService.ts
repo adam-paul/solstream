@@ -169,6 +169,15 @@ class SocketService {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
     }
+    
+    const errorHandler = (error: { message: string }) => {
+      if (error.message.includes(stream.id)) {
+        this.socket?.off('error', errorHandler);
+        throw new Error(error.message);
+      }
+    };
+    
+    this.socket.on('error', errorHandler);
     this.socket.emit('startStream', stream);
   }
 
@@ -210,7 +219,28 @@ class SocketService {
 
   // Strongly typed event listeners
   onStreamStarted(callback: SocketEvents['streamStarted']): () => void {
-    return this.addEventHandler('streamStarted', callback);
+    if (!this.socket?.connected) {
+      throw new Error('Socket not initialized');
+    }
+    
+    const wrappedCallback = (stream: Stream) => {
+      callback(stream);
+    };
+    
+    this.socket.on('streamStarted', wrappedCallback);
+    const listeners = this.eventListeners.get('streamStarted') || new Set();
+    listeners.add(callback);
+    this.eventListeners.set('streamStarted', listeners);
+
+    return () => {
+      if (this.socket) {
+        this.socket.off('streamStarted', wrappedCallback);
+        const listeners = this.eventListeners.get('streamStarted');
+        if (listeners) {
+          listeners.delete(callback);
+        }
+      }
+    };
   }
 
   onStreamEnded(callback: SocketEvents['streamEnded']): () => void {

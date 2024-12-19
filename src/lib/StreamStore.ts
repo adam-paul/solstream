@@ -38,7 +38,7 @@ interface StreamState {
   syncWithBackend: () => Promise<void>;
   
   // Stream actions - these now only trigger socket events
-  startStream: (streamData: Omit<Stream, 'id'>) => void;
+  startStream: (streamData: Omit<Stream, 'id'>) => Promise<string>;
   endStream: (id: string) => void;
   updateViewerCount: (id: string, count: number) => void;
   updatePreview: (id: string, previewUrl: string) => void;
@@ -170,14 +170,50 @@ const useStreamStore = create<StreamState>()((set, get) => ({
   },
 
   // Stream actions
-  startStream: (streamData) => {
+  startStream: async (streamData) => {
+    const streamId = `stream-${crypto.randomUUID()}`;
     const stream = {
       ...streamData,
-      id: `stream-${crypto.randomUUID()}`
+      id: streamId,
     };
-    // Set role before emitting socket event
-    get().setUserRole(stream.id, 'host');
-    socketService.startStream(stream);
+
+    // Return a promise that resolves when the stream is confirmed started
+    return new Promise((resolve, reject) => {
+      // Set up a one-time listener for stream start confirmation
+      const onStreamStarted = (confirmedStream: Stream) => {
+        if (confirmedStream.id === streamId) {
+          // Clean up listener
+          socketService.onStreamStarted(onStreamStarted);
+          resolve(streamId);
+        }
+      };
+
+      // Set up a one-time error listener
+      const onError = (error: { message: string }) => {
+        if (error.message.includes(streamId)) {
+          // Clean up listeners
+          socketService.onStreamStarted(onStreamStarted);
+          socketService.onError(onError);
+          reject(new Error(error.message));
+        }
+      };
+
+      // Add listeners
+      socketService.onStreamStarted(onStreamStarted);
+      socketService.onError(onError);
+
+      // Set role and emit socket event
+      get().setUserRole(streamId, 'host');
+      socketService.startStream(stream);
+
+      // Set up timeout to prevent hanging
+      setTimeout(() => {
+        // Clean up listeners
+        socketService.onStreamStarted(onStreamStarted);
+        socketService.onError(onError);
+        reject(new Error('Stream creation timed out'));
+      }, 10000); // 10 second timeout
+    });
   },
 
   endStream: (id) => {

@@ -28,33 +28,31 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
   const [twitterLink, setTwitterLink] = useState('');
   const [telegramLink, setTelegramLink] = useState('');
   const [website, setWebsite] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { startStream } = useInitializedStreamStore();
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      // Generate stream ID
-      const streamId = `stream-${crypto.randomUUID()}`;
+      setIsCreating(true);
+      setError(null);
       
-      // Create the stream data
-      const streamData = {
-        ...createStream({
-          title,
-          ticker,
-          coinAddress,
-        }, sessionManager.getUserId()),
-        id: streamId,
-        description: description || undefined
-      };
+      // Create the stream data without ID (ID will be generated in startStream)
+      const streamData = createStream({
+        title,
+        ticker,
+        coinAddress,
+      }, sessionManager.getUserId());
 
-      // Initiate stream creation through StreamStore
-      startStream(streamData);
-      
+      // Wait for stream creation confirmation
+      const streamId = await startStream(streamData);
+
       // Reset form
       setTitle('');
       setDescription('');
@@ -70,7 +68,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
       onStreamCreated(streamId);
     } catch (error) {
       console.error('Failed to create stream:', error);
-      // Note: Error handling is managed by StreamStore
+      setError(error instanceof Error ? error.message : 'Failed to create stream');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -227,12 +227,24 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
             </div>
           )}
 
+          {/* Error Message */}
+          {error && (
+            <div className="text-red-500 bg-red-500/10 p-4 rounded-lg text-center">
+              {error}
+            </div>
+          )}
+
           {/* Launch Button */}
           <button
             type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg mt-8"
+            disabled={isCreating}
+            className={`w-full ${
+              isCreating 
+                ? 'bg-blue-400 cursor-not-allowed' 
+                : 'bg-blue-600 hover:bg-blue-700'
+            } text-white font-bold py-3 px-6 rounded-lg text-lg mt-8`}
           >
-            launch stream
+            {isCreating ? 'launching stream...' : 'launch stream'}
           </button>
 
           {/* Fee Notice */}

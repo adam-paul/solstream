@@ -4,9 +4,9 @@
 import React, { useRef, useEffect, useState } from 'react';
 import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import { useInitializedStreamStore } from '@/lib/StreamStore';
+import { socketService } from '@/lib/socketService';
 import { DEFAULT_PREVIEW_CONFIG } from '@/config/preview';
 
-// Initialize AgoraRTC only on the client side
 let AgoraRTC: any;
 if (typeof window !== 'undefined') {
   AgoraRTC = require('agora-rtc-sdk-ng').default;
@@ -16,6 +16,8 @@ interface StreamComponentProps {
   streamId: string;
   onClose: () => void;
 }
+
+const INITIALIZATION_TIMEOUT = 15000; // 15 seconds
 
 const StreamComponent: React.FC<StreamComponentProps> = ({
   streamId,
@@ -34,7 +36,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   
   // Local state
   const [error, setError] = useState<string>('');
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   
   // Get store methods
   const {
@@ -46,7 +48,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   
   const stream = getStream(streamId);
 
-  // Preview capture
+  // Preview capture function remains the same
   const capturePreview = React.useCallback(async () => {
     try {
       if (!tracksRef.current.videoTrack || !videoRef.current) {
@@ -92,52 +94,101 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   }, [streamId, updatePreview]);
 
   // Cleanup function
-  const cleanup = async () => {
+  const cleanup = React.useCallback(async () => {
     console.log('[StreamComponent] Starting cleanup...');
     
-    try {
-      // Clear preview interval
-      if (previewIntervalRef.current) {
-        clearInterval(previewIntervalRef.current);
-        previewIntervalRef.current = null;
-      }
-
-      // Clean up tracks
-      if (tracksRef.current.videoTrack) {
-        tracksRef.current.videoTrack.stop();
-        await tracksRef.current.videoTrack.close();
-      }
-      
-      if (tracksRef.current.audioTrack) {
-        tracksRef.current.audioTrack.stop();
-        await tracksRef.current.audioTrack.close();
-      }
-
-      // Clean up client
-      if (clientRef.current) {
-        clientRef.current.removeAllListeners();
-        
-        if (clientRef.current?.connectionState === 'CONNECTED') {
-          const tracks = [tracksRef.current.audioTrack, tracksRef.current.videoTrack]
-            .filter((track): track is ICameraVideoTrack | IMicrophoneAudioTrack => track !== null);
-          
-          if (tracks.length > 0) {
-            await clientRef.current.unpublish(tracks);
-          }
-          await clientRef.current.leave();
-        }
-      }
-
-      // Reset refs
-      tracksRef.current = { videoTrack: null, audioTrack: null };
-      clientRef.current = null;
-      
-      console.log('[StreamComponent] Cleanup completed');
-    } catch (err) {
-      console.error('[StreamComponent] Error during cleanup:', err);
-      setError('Failed to clean up stream resources');
+    // Clear preview interval
+    if (previewIntervalRef.current) {
+      clearInterval(previewIntervalRef.current);
+      previewIntervalRef.current = null;
     }
-  };
+
+    // Clean up tracks
+    if (tracksRef.current.videoTrack) {
+      tracksRef.current.videoTrack.stop();
+      await tracksRef.current.videoTrack.close();
+    }
+    
+    if (tracksRef.current.audioTrack) {
+      tracksRef.current.audioTrack.stop();
+      await tracksRef.current.audioTrack.close();
+    }
+
+    // Clean up client
+    if (clientRef.current) {
+      clientRef.current.removeAllListeners();
+      
+      if (clientRef.current?.connectionState === 'CONNECTED') {
+        const tracks = [tracksRef.current.audioTrack, tracksRef.current.videoTrack]
+          .filter((track): track is ICameraVideoTrack | IMicrophoneAudioTrack => track !== null);
+        
+        if (tracks.length > 0) {
+          await clientRef.current.unpublish(tracks);
+        }
+        await clientRef.current.leave();
+      }
+    }
+
+    // Reset refs
+    tracksRef.current = { videoTrack: null, audioTrack: null };
+    clientRef.current = null;
+    
+    console.log('[StreamComponent] Cleanup completed');
+  }, []);
+
+  // Initialize Agora client
+  const initializeAgora = React.useCallback(async () => {
+    if (!stream || !AgoraRTC) {
+      throw new Error('Stream or AgoraRTC not available');
+    }
+
+    const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID;
+    if (!AGORA_APP_ID) {
+      throw new Error('Agora App ID not configured');
+    }
+
+    // Create and configure client
+    const client = AgoraRTC.createClient({ 
+      mode: "live", 
+      codec: "vp8",
+      role: "host"
+    });
+    clientRef.current = client;
+
+    // Get token
+    const response = await fetch(`/api/agora-token?channel=${streamId}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch token');
+    }
+    const { token, uid } = await response.json();
+    
+    if (!token) {
+      throw new Error('Failed to generate token');
+    }
+
+    // Join channel
+    await client.join(AGORA_APP_ID, streamId, token, uid);
+
+    // Create tracks
+    const [audioTrack, videoTrack] = await Promise.all([
+      AgoraRTC.createMicrophoneAudioTrack(),
+      AgoraRTC.createCameraVideoTrack()
+    ]);
+
+    tracksRef.current = {
+      audioTrack,
+      videoTrack
+    };
+
+    // Publish tracks
+    await client.publish([audioTrack, videoTrack]);
+
+    if (videoRef.current) {
+      videoTrack.play(videoRef.current);
+    }
+
+    return true;
+  }, [stream, streamId]);
 
   // Handle stream end
   const handleEndStream = async () => {
@@ -146,103 +197,86 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     onClose();
   };
 
-  // Initialize stream
+  // Effect to handle stream initialization
   useEffect(() => {
     let isMounted = true;
+    let initTimeout: NodeJS.Timeout;
 
-    if (typeof window === 'undefined' || !AgoraRTC || !stream || !isStreamHost(streamId)) {
-      return;
-    }
-
-    const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID;
-    if (!AGORA_APP_ID) {
-      setError('Agora App ID not configured');
-      return;
-    }
-
-    const initStream = async () => {
+    const initialize = async () => {
       try {
-        console.log('[StreamComponent] Initializing stream...');
+        setIsInitializing(true);
         
-        // Create and configure client
-        if (!clientRef.current) {
-          const client = AgoraRTC.createClient({ 
-            mode: "live", 
-            codec: "vp8",
-            role: "host"
-          });
-          clientRef.current = client;
-        }
-
-        // Get token
-        const response = await fetch(`/api/agora-token?channel=${streamId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch token');
-        }
-        const { token, uid } = await response.json();
-        
-        if (!token) {
-          throw new Error('Failed to generate token');
-        }
-
-        // Join channel
-        await clientRef.current!.join(
-          AGORA_APP_ID,
-          streamId,
-          token,
-          uid
-        );
-
-        // Create tracks
-        const [audioTrack, videoTrack] = await Promise.all([
-          AgoraRTC.createMicrophoneAudioTrack(),
-          AgoraRTC.createCameraVideoTrack()
-        ]);
-
-        if (!isMounted) return;
-
-        tracksRef.current = {
-          audioTrack,
-          videoTrack
-        };
-
-        // Publish tracks
-        await clientRef.current!.publish([audioTrack, videoTrack]);
-
-        if (videoRef.current) {
-          videoTrack.play(videoRef.current);
-        }
-
-        setIsInitialized(true);
-        console.log('[StreamComponent] Stream initialized successfully');
-
-        // Set up preview capture
-        setTimeout(async () => {
+        // Set initialization timeout
+        initTimeout = setTimeout(() => {
           if (isMounted) {
-            await capturePreview();
-            previewIntervalRef.current = setInterval(
-              capturePreview,
-              DEFAULT_PREVIEW_CONFIG.updateInterval
-            );
+            setError('Stream initialization timed out');
+            setIsInitializing(false);
+            cleanup();
           }
-        }, DEFAULT_PREVIEW_CONFIG.initialDelay);
+        }, INITIALIZATION_TIMEOUT);
 
+        // Wait for stream confirmation
+        const confirmStream = new Promise<void>((resolve, reject) => {
+          const onStreamStarted = (confirmedStream: any) => {
+            if (confirmedStream.id === streamId) {
+              socketService.onStreamStarted(onStreamStarted); // Cleanup listener
+              resolve();
+            }
+          };
+        
+          const onError = (error: { message: string }) => {
+            if (error.message.includes(streamId)) {
+              socketService.onStreamStarted(onStreamStarted);
+              socketService.onError(onError);
+              reject(new Error(error.message));
+            }
+          };
+        
+          socketService.onStreamStarted(onStreamStarted);
+          socketService.onError(onError);
+        });
+
+        await confirmStream;
+
+        // Initialize Agora
+        await initializeAgora();
+
+        if (isMounted) {
+          setIsInitializing(false);
+          
+          // Start preview capture
+          setTimeout(async () => {
+            if (isMounted) {
+              await capturePreview();
+              previewIntervalRef.current = setInterval(
+                capturePreview,
+                DEFAULT_PREVIEW_CONFIG.updateInterval
+              );
+            }
+          }, DEFAULT_PREVIEW_CONFIG.initialDelay);
+        }
       } catch (err) {
         if (isMounted) {
-          const errorMessage = err instanceof Error ? err.message : 'Failed to start stream';
+          const errorMessage = err instanceof Error ? err.message : 'Failed to initialize stream';
           console.error('[StreamComponent] Initialization error:', errorMessage);
           setError(errorMessage);
+          setIsInitializing(false);
         }
+      } finally {
+        clearTimeout(initTimeout);
       }
     };
 
-    initStream();
+    if (typeof window !== 'undefined' && stream && isStreamHost(streamId)) {
+      initialize();
+    }
 
     return () => {
       isMounted = false;
+      clearTimeout(initTimeout);
       cleanup();
     };
-  }, [stream, streamId, isStreamHost, updatePreview, capturePreview]);
+  }, [stream, streamId, isStreamHost, initializeAgora, cleanup, capturePreview]);
 
   // Verify host status
   if (!stream || !isStreamHost(streamId)) {
@@ -273,8 +307,14 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
           <div 
             ref={videoRef} 
             className="w-full aspect-video bg-gray-900 rounded-lg"
-          />
-          {isInitialized && stream.viewers > 0 && (
+          >
+            {isInitializing && (
+              <div className="flex items-center justify-center h-full">
+                <p className="text-white">Initializing stream...</p>
+              </div>
+            )}
+          </div>
+          {!isInitializing && stream.viewers > 0 && (
             <div className="mt-4 text-sm text-gray-400">
               {stream.viewers} viewer{stream.viewers !== 1 ? 's' : ''} watching
             </div>
