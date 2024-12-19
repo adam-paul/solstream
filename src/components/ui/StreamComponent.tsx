@@ -144,41 +144,38 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   const startLiveStream = useCallback(async () => {
     try {
       setError('');
-      setStreamState(StreamState.LAUNCHING);
       
-      // First handle the stream lifecycle
+      // Core stream startup
       await streamLifecycle.startStream(streamId);
-      
-      // Then handle preview - but don't fail if preview fails
-      try {
-        await capturePreview();
-      } catch (previewError) {
-        console.warn('Preview capture failed:', previewError);
-        // Continue with stream - preview isn't critical
-      }
-      
-      // Finally broadcast through socket
       await broadcastStream(streamId);
       
-      // Only after all succeeded, update UI state
+      // If we get here, stream is successfully live
       setIsPreLaunch(false);
       setStreamState(StreamState.LIVE);
-      
-      // Start regular preview captures after a delay
-      setTimeout(startPreviewCaptures, 5000);
+  
+      // Handle preview separately - failures don't affect stream
+      try {
+        await capturePreview();
+        // Start preview captures in background
+        setTimeout(startPreviewCaptures, 5000);
+      } catch (previewError) {
+        // Just log preview errors, don't affect stream state
+        console.warn('[StreamComponent] Preview capture failed:', previewError);
+      }
     } catch (error) {
+      // Only handle errors from core streaming
       console.error('[StreamComponent] Failed to start stream:', error);
       setError(error instanceof Error ? error.message : 'Failed to start stream');
       setStreamState(StreamState.ERROR);
       
-      // Attempt cleanup
+      // Cleanup only if core streaming failed
       try {
         await streamLifecycle.cleanup(streamId);
       } catch (cleanupError) {
         console.error('[StreamComponent] Cleanup failed:', cleanupError);
       }
     }
-  }, [streamId, broadcastStream, startPreviewCaptures, capturePreview]);
+  }, [streamId, broadcastStream, capturePreview, startPreviewCaptures]);
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
