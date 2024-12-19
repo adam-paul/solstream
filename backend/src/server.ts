@@ -60,17 +60,9 @@ export class StreamServer {
     // Initialize Socket.IO with CORS config
     this.io = new Server(this.httpServer, {
       cors: {
-        origin: (origin, callback) => {
-          if (!origin || this.allowedOrigins.includes(origin)) {
-            callback(null, true);
-          } else {
-            callback(new Error('Not allowed by CORS'));
-          }
-        },
-        credentials: true,
-        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
-        exposedHeaders: ['Access-Control-Allow-Origin']
+        origin: "https://www.solstream.fun",
+        methods: ["GET", "POST"],
+        credentials: true
       },
       transports: ['websocket']
     });
@@ -84,7 +76,7 @@ export class StreamServer {
   private setupMiddleware() {
     // If needed, set up Express middlewares here (e.g., cors(), body parser, etc.)
     // Do NOT re-initialize Socket.IO here, as it would cause the "handleUpgrade()" issue.
-    this.app.use(cors());
+    // this.app.use(cors());
   }
 
   private setupSocketServer() {
