@@ -42,11 +42,11 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       
       // If this is video, explicitly play it in the container
       if (mediaType === 'video' && user.videoTrack) {
-        user.videoTrack.play(videoRef.current);
+        await user.videoTrack.play(videoRef.current);
       }
       // If this is audio, play it directly
       if (mediaType === 'audio' && user.audioTrack) {
-        user.audioTrack.play();
+        await user.audioTrack.play();
       }
       
       console.log('[StreamViewer] Successfully subscribed to:', mediaType);
@@ -75,8 +75,11 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       agoraService.onUserPublished(handleUserPublished);
       agoraService.onUserUnpublished(handleUserUnpublished);
       
+      // Start the stream and join the channel
       await streamLifecycle.startStream(stream.id);
       setStreamState(StreamState.READY);
+      
+      console.log('[StreamViewer] Successfully initialized viewer');
     } catch (error) {
       console.error('[StreamViewer] Initialization error:', error);
       setError(error instanceof Error ? error.message : 'Failed to initialize viewer');

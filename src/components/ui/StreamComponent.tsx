@@ -63,7 +63,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       if (!video || video.readyState < 2) return; // Wait for video to be ready
 
       const canvas = document.createElement('canvas');
-      const scaleFactor = 0.25;
+      const scaleFactor = 0.5;
       canvas.width = video.videoWidth * scaleFactor;
       canvas.height = video.videoHeight * scaleFactor;
 
@@ -71,9 +71,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       if (!ctx) return;
 
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const previewUrl = canvas.toDataURL('image/jpeg', 0.1);
+      const previewUrl = canvas.toDataURL('image/jpeg', 0.8);
 
-      if (previewUrl.length <= 100000 && mountedRef.current) {
+      if (previewUrl.length <= 200000 && mountedRef.current) {
         updatePreview(streamId, previewUrl);
       }
 
@@ -143,13 +143,17 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   const startLiveStream = useCallback(async () => {
     try {
       setIsPreLaunch(false);
+      
+      // Capture initial preview before going live
+      await capturePreview();
+      
       await streamLifecycle.startStream(streamId);
       startPreviewCaptures();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to start stream');
       setIsPreLaunch(true);
     }
-  }, [streamId, startPreviewCaptures]);
+  }, [streamId, startPreviewCaptures, capturePreview]);
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
@@ -208,7 +212,14 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   // Effect for preview captures - only start when not in pre-launch
   useEffect(() => {
     if (!isPreLaunch && streamState === StreamState.LIVE) {
-      startPreviewCaptures();
+      // Don't start preview captures immediately, give a delay
+      const timer = setTimeout(startPreviewCaptures, 5000);
+      return () => {
+        clearTimeout(timer);
+        if (previewIntervalRef.current) {
+          clearInterval(previewIntervalRef.current);
+        }
+      };
     }
     return () => {
       if (previewIntervalRef.current) {
@@ -253,12 +264,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         </div>
         
         <div className="flex gap-2">
-          <button 
-            onClick={handleEndStream}
-            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
-          >
-            End Stream
-          </button>
           {!isLive && streamState === StreamState.READY && (
             <button
               onClick={startLiveStream}
@@ -272,6 +277,12 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
               Go Live
             </button>
           )}
+          <button 
+            onClick={handleEndStream}
+            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
+          >
+            End Stream
+          </button>
         </div>
       </div>
 
