@@ -11,17 +11,7 @@ import type {
   UserUnpublishedCallback,
   LocalTracks
 } from '@/types/agora';
-
-// Only import AgoraRTC on client
-let AgoraRTC: any;
-if (typeof window !== 'undefined') {
-  // Dynamic import to ensure proper loading
-  import('agora-rtc-sdk-ng').then(module => {
-    AgoraRTC = module.default;
-  }).catch(error => {
-    console.error('Failed to load AgoraRTC:', error);
-  });
-}
+import AgoraRTC from 'agora-rtc-sdk-ng';
 
 export class AgoraService implements IAgoraService {
   private client: IAgoraRTCClient | null = null;
@@ -37,37 +27,29 @@ export class AgoraService implements IAgoraService {
   }
 
   async initializeClient(config: StreamConfig): Promise<IAgoraRTCClient> {
-    if (!AgoraRTC) {
-      throw new Error('AgoraRTC not available');
-    }
-
     try {
       // Ensure cleanup of any existing client
       await this.cleanup();
 
-      const client = AgoraRTC.createClient({
+      this.client = AgoraRTC.createClient({
         mode: "live",
         codec: "vp8",
         role: config.role
       });
-
-      this.client = client;
 
       let token = config.token;
       let uid = config.uid;
 
       if (!token) {
         const response = await fetch(`/api/agora-token?channel=${config.streamId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch token');
-        }
+        if (!response.ok) throw new Error('Failed to fetch token');
         const data = await response.json();
         token = data.token;
         uid = data.uid;
       }
 
-      await client.join(this.appId, config.streamId, token || null, uid);
-      return client;
+      await this.client.join(this.appId, config.streamId, token || null, uid);
+      return this.client;
     } catch (error) {
       await this.cleanup();
       throw error;
@@ -104,7 +86,7 @@ export class AgoraService implements IAgoraService {
         try {
           const [audioTrack, videoTrack] = await Promise.all([
             AgoraRTC.createMicrophoneAudioTrack({
-              deviceId: deviceConfig?.microphoneId,
+              microphoneId: deviceConfig?.microphoneId || undefined,
               AEC: true,
               ANS: true,
               AGC: true
@@ -113,7 +95,7 @@ export class AgoraService implements IAgoraService {
               return null;
             }),
             AgoraRTC.createCameraVideoTrack({
-              deviceId: deviceConfig?.cameraId,
+              cameraId: deviceConfig?.cameraId || undefined,
               encoderConfig: {
                 width: { min: 640, ideal: 1280, max: 1920 },
                 height: { min: 480, ideal: 720, max: 1080 },
@@ -209,7 +191,7 @@ export class AgoraService implements IAgoraService {
 
     try {
       const newTrack = await AgoraRTC.createCameraVideoTrack({
-        deviceId,
+        cameraId: deviceId,
         encoderConfig: {
           width: 1280,
           height: 720,
@@ -239,7 +221,7 @@ export class AgoraService implements IAgoraService {
 
     try {
       const newTrack = await AgoraRTC.createMicrophoneAudioTrack({
-        deviceId,
+        microphoneId: deviceId,
         AEC: true,
         ANS: true,
         AGC: true

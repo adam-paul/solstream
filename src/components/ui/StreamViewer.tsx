@@ -14,18 +14,13 @@ interface StreamViewerProps {
 const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   // Refs
   const videoRef = useRef<HTMLDivElement>(null);
-  const mountedRef = useRef<boolean>(true);
   
   // State
   const [error, setError] = useState<string>('');
   const [streamState, setStreamState] = useState<StreamStateType>(StreamState.INITIALIZING);
   
   // Store methods
-  const {
-    isStreamHost,
-    isStreamActive,
-    setUserRole
-  } = useInitializedStreamStore();
+  const { isStreamHost } = useInitializedStreamStore();
 
   // Handle remote user media
   const handleUserPublished = useCallback(async (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => {
@@ -37,19 +32,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         return;
       }
       
-      // Subscribe to the remote user
       await agoraService.handleUserPublished(videoRef.current, user, mediaType);
-      
-      // If this is video, explicitly play it in the container
-      if (mediaType === 'video' && user.videoTrack) {
-        await user.videoTrack.play(videoRef.current);
-      }
-      // If this is audio, play it directly
-      if (mediaType === 'audio' && user.audioTrack) {
-        await user.audioTrack.play();
-      }
-      
-      console.log('[StreamViewer] Successfully subscribed to:', mediaType);
     } catch (err) {
       console.error('[StreamViewer] Subscribe error:', err);
       setError('Failed to subscribe to stream');
@@ -61,79 +44,63 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     console.log('[StreamViewer] Remote user unpublished:', user.uid);
   }, []);
 
-  // Initialize viewer
-  const initializeViewer = useCallback(async () => {
-    if (!videoRef.current) {
-      console.warn('[StreamViewer] Video container not ready');
-      return;
-    }
-
-    try {
-      // Wait for Agora to be ready
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Initialize stream
-      await streamLifecycle.initializeStream(stream, videoRef.current, 'viewer');
-      
-      // Set up both published and unpublished handlers
-      agoraService.onUserPublished(handleUserPublished);
-      agoraService.onUserUnpublished(handleUserUnpublished);
-      
-      // Start the stream and join the channel
-      await streamLifecycle.startStream(stream.id);
-      setStreamState(StreamState.READY);
-      
-      console.log('[StreamViewer] Successfully initialized viewer');
-    } catch (error) {
-      console.error('[StreamViewer] Initialization error:', error);
-      setError(error instanceof Error ? error.message : 'Failed to initialize viewer');
-    }
-  }, [stream, handleUserPublished, handleUserUnpublished]);
-
   // Handle retry
   const handleRetry = useCallback(() => {
     setError('');
     setStreamState(StreamState.INITIALIZING);
-    streamLifecycle.cleanup(stream.id).then(() => {
-      if (mountedRef.current) {
-        initializeViewer();
+    
+    const initialize = async () => {
+      if (!videoRef.current) return;
+
+      try {
+        await streamLifecycle.cleanup(stream.id);
+        await streamLifecycle.initializeStream(stream, videoRef.current, 'viewer');
+        
+        agoraService.onUserPublished(handleUserPublished);
+        agoraService.onUserUnpublished(handleUserUnpublished);
+
+        await streamLifecycle.startStream(stream.id);
+        setStreamState(StreamState.LIVE);
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to initialize viewer');
       }
-    });
-  }, [stream.id, initializeViewer]);
+    };
+
+    initialize();
+  }, [stream, handleUserPublished, handleUserUnpublished]);
 
   // Initialize on mount
   useEffect(() => {
-    mountedRef.current = true;
+    let mounted = true;
 
-    // Check if we can view this stream
-    if (!stream || !isStreamActive(stream.id) || isStreamHost(stream.id)) {
-      return;
-    }
+    const initialize = async () => {
+      if (!videoRef.current) return;
 
-    // Set up state change listener
-    const unsubscribe = streamLifecycle.onStateChange(stream.id, (newState) => {
-      if (mountedRef.current) {
-        setStreamState(newState);
-        if (newState === StreamState.ERROR) {
-          const error = streamLifecycle.getError(stream.id);
-          if (error) setError(error.message);
+      try {
+        await streamLifecycle.initializeStream(stream, videoRef.current, 'viewer');
+        if (!mounted) return;
+
+        agoraService.onUserPublished(handleUserPublished);
+        agoraService.onUserUnpublished(handleUserUnpublished);
+
+        await streamLifecycle.startStream(stream.id);
+        if (mounted) {
+          setStreamState(StreamState.LIVE);
         }
-        if (newState === StreamState.READY) {
-          setUserRole(stream.id, 'viewer');
+      } catch (error) {
+        if (mounted) {
+          setError(error instanceof Error ? error.message : 'Failed to initialize viewer');
         }
       }
-    });
+    };
 
-    // Add a small delay before initialization to ensure Agora is ready
-    const initTimer = setTimeout(initializeViewer, 1000);
+    initialize();
 
     return () => {
-      mountedRef.current = false;
-      unsubscribe();
-      clearTimeout(initTimer);
+      mounted = false;
       streamLifecycle.cleanup(stream.id).catch(console.error);
     };
-  }, [stream, initializeViewer, isStreamActive, isStreamHost, setUserRole]);
+  }, [stream, handleUserPublished, handleUserUnpublished]);
 
   // Check if user can view this stream
   if (isStreamHost(stream.id)) {
