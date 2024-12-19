@@ -115,6 +115,18 @@ export class StreamLifecycleManager {
               video: videoTrack || null,
               audio: audioTrack || null
             };
+
+            // Play video preview for host if video track exists
+            if (videoTrack && videoContainer) {
+              try {
+                await videoTrack.play(videoContainer);
+                context.isPreviewEnabled = true;
+              } catch (playError) {
+                console.error('[StreamLifecycle] Failed to play video preview:', playError);
+                // Don't throw here - we still want to continue with the stream
+              }
+            }
+            
             break;
           } catch (error) {
             retryCount++;
