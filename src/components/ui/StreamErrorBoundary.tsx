@@ -1,8 +1,13 @@
 // src/components/ui/StreamErrorBoundary.tsx
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+'use client'
+
+import React from 'react';
+import { streamLifecycle } from '@/lib/streamLifecycle';
 
 interface Props {
-  children: ReactNode;
+  streamId: string;
+  children: React.ReactNode;
+  onError?: (error: Error) => void;
   onReset?: () => void;
 }
 
@@ -11,36 +16,45 @@ interface State {
   error: Error | null;
 }
 
-class StreamErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null
-  };
+export class StreamErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
 
-  public static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Stream error caught:', error, errorInfo);
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[StreamErrorBoundary] Error caught:', error, errorInfo);
+    this.props.onError?.(error);
   }
 
-  private handleReset = () => {
-    this.setState({ hasError: false, error: null });
-    this.props.onReset?.();
+  handleRetry = async () => {
+    try {
+      // Clean up existing resources
+      await streamLifecycle.cleanup(this.props.streamId);
+      // Reset error state
+      this.setState({ hasError: false, error: null });
+      // Call onReset if provided
+      this.props.onReset?.();
+    } catch (error) {
+      console.error('[StreamErrorBoundary] Retry failed:', error);
+    }
   };
 
-  public render() {
+  render() {
     if (this.state.hasError) {
       return (
-        <div className="w-full min-h-[200px] bg-gray-800 rounded-lg p-6 text-center">
-          <h3 className="text-xl text-red-500 mb-4">Stream Error</h3>
-          <p className="text-gray-300 mb-4">
-            {this.state.error?.message || 'An unexpected error occurred while displaying the stream.'}
-          </p>
+        <div className="w-full bg-gray-800 rounded-lg p-4">
+          <div className="text-red-500 mb-4">
+            <h3 className="text-lg font-semibold mb-2">Stream Error</h3>
+            <p>{this.state.error?.message || 'An unexpected error occurred'}</p>
+          </div>
           <button
-            onClick={this.handleReset}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-white"
+            onClick={this.handleRetry}
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 rounded text-white"
           >
             Try Again
           </button>

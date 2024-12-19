@@ -163,8 +163,10 @@ export class AgoraService implements IAgoraService {
     };
   }
 
-  async switchCamera(deviceId: string): Promise<void> {
-    if (!AgoraRTC || !this.videoTrack) return;
+  async switchCamera(deviceId: string): Promise<ICameraVideoTrack> {
+    if (!AgoraRTC || !this.videoTrack) {
+      throw new Error('AgoraRTC or video track not available');
+    }
 
     try {
       const newTrack = await AgoraRTC.createCameraVideoTrack({
@@ -184,14 +186,17 @@ export class AgoraService implements IAgoraService {
       await this.videoTrack.stop();
       await this.videoTrack.close();
       this.videoTrack = newTrack;
+      return newTrack;
     } catch (error) {
       console.error('Failed to switch camera:', error);
       throw error;
     }
   }
 
-  async switchMicrophone(deviceId: string): Promise<void> {
-    if (!AgoraRTC || !this.audioTrack) return;
+  async switchMicrophone(deviceId: string): Promise<IMicrophoneAudioTrack> {
+    if (!AgoraRTC || !this.audioTrack) {
+      throw new Error('AgoraRTC or audio track not available');
+    }
 
     try {
       const newTrack = await AgoraRTC.createMicrophoneAudioTrack({
@@ -209,6 +214,7 @@ export class AgoraService implements IAgoraService {
       await this.audioTrack.stop();
       await this.audioTrack.close();
       this.audioTrack = newTrack;
+      return newTrack;
     } catch (error) {
       console.error('Failed to switch microphone:', error);
       throw error;

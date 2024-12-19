@@ -5,6 +5,7 @@ import { Mic, Video, VideoOff, MicOff, Settings } from 'lucide-react';
 import { agoraService } from '@/lib/agoraService';
 import { useInitializedStreamStore } from '@/lib/StreamStore';
 import { DEFAULT_PREVIEW_CONFIG } from '@/config/preview';
+import { streamLifecycle, StreamState, type StreamStateType } from '@/lib/streamLifecycle';
 
 interface StreamComponentProps {
   streamId: string;
@@ -17,22 +18,17 @@ interface StreamControls {
   selectedMicrophone: string;
 }
 
-const INITIALIZATION_TIMEOUT = 15000; // 15 seconds
-
 const StreamComponent: React.FC<StreamComponentProps> = ({
   streamId
 }) => {
   // Refs
   const videoRef = useRef<HTMLDivElement>(null);
-  const connectionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const previewIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const mountedRef = useRef<boolean>(true);
   
   // State
   const [error, setError] = useState<string>('');
-  const [isInitializing, setIsInitializing] = useState(true);
-  const [isLive, setIsLive] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [streamState, setStreamState] = useState<StreamStateType>(StreamState.INITIALIZING);
   const [devices, setDevices] = useState<{
     cameras: MediaDeviceInfo[];
     microphones: MediaDeviceInfo[];
@@ -46,6 +42,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     selectedCamera: '',
     selectedMicrophone: ''
   });
+  const [showSettings, setShowSettings] = useState(false);
 
   // Get store methods
   const {
@@ -56,51 +53,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   
   const stream = getStream(streamId);
 
-  // Cleanup function
-  const cleanup = useCallback(async () => {
-    console.log('[StreamComponent] Starting cleanup...');
-    try {
-      if (connectionTimeoutRef.current) {
-        clearTimeout(connectionTimeoutRef.current);
-        connectionTimeoutRef.current = undefined;
-      }
-      if (previewIntervalRef.current) {
-        clearInterval(previewIntervalRef.current);
-        previewIntervalRef.current = undefined;
-      }
-
-      // Clear video container
-      if (videoRef.current) {
-        while (videoRef.current.firstChild) {
-          videoRef.current.removeChild(videoRef.current.firstChild);
-        }
-      }
-
-      await agoraService.cleanup();
-    } catch (err) {
-      console.error('[StreamComponent] Cleanup error:', err);
-    }
-  }, []);
-
-  // Error handling
-  const handleError = useCallback((error: unknown) => {
-    if (!mountedRef.current) return;
-
-    const message = error instanceof Error 
-      ? error.message 
-      : 'An unexpected error occurred';
-    
-    setError(message);
-    setIsInitializing(false);
-    
-    if (connectionTimeoutRef.current) {
-      clearTimeout(connectionTimeoutRef.current);
-    }
-  }, []);
-
   // Preview capture functionality
   const capturePreview = useCallback(async () => {
-    if (!videoRef.current || !isLive || !mountedRef.current) return;
+    if (!videoRef.current || streamState !== StreamState.LIVE || !mountedRef.current) return;
 
     try {
       const video = videoRef.current.querySelector('video');
@@ -125,7 +80,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     } catch (error) {
       console.error('Preview capture error:', error);
     }
-  }, [streamId, isLive, updatePreview]);
+  }, [streamId, streamState, updatePreview]);
 
   const startPreviewCaptures = useCallback(() => {
     if (!mountedRef.current) return;
@@ -139,99 +94,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       DEFAULT_PREVIEW_CONFIG.updateInterval
     );
   }, [capturePreview]);
-
-  // Initialize stream
-  const initializeStream = useCallback(async () => {
-    if (!mountedRef.current) return;
-
-    try {
-      setIsInitializing(true);
-      setError('');
-
-      // Request permissions first
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
-        });
-        // Immediately stop the test stream
-        stream.getTracks().forEach(track => track.stop());
-      } catch (permissionError) {
-        console.error('Permission error:', permissionError);
-        throw new Error('Please allow camera and microphone access to stream');
-      }
-
-      // Only get devices after permissions are granted
-      const availableDevices = await agoraService.getDevices();
-      if (!mountedRef.current) return;
-      
-      setDevices(availableDevices);
-
-      // Set initial device selections if not already set
-      setControls(prev => ({
-        ...prev,
-        selectedCamera: prev.selectedCamera || availableDevices.cameras[0]?.deviceId || '',
-        selectedMicrophone: prev.selectedMicrophone || availableDevices.microphones[0]?.deviceId || ''
-      }));
-
-      // Initialize Agora client
-      await agoraService.initializeClient({
-        role: 'host',
-        streamId
-      });
-
-      if (!mountedRef.current) return;
-
-      // Initialize tracks
-      await agoraService.initializeHostTracks({
-        cameraId: controls.selectedCamera,
-        microphoneId: controls.selectedMicrophone
-      });
-
-      // Play video preview
-      if (videoRef.current) {
-        agoraService.playVideo(videoRef.current);
-      }
-
-      // Clear timeout and update state
-      if (mountedRef.current) {
-        setIsInitializing(false);
-        startPreviewCaptures();
-      }
-
-    } catch (error) {
-      console.error('Stream initialization error:', error);
-      if (mountedRef.current) {
-        handleError(error);
-      }
-    }
-  }, [streamId, controls.selectedCamera, controls.selectedMicrophone, handleError, startPreviewCaptures]);
-
-  // Handle stream start
-  const startLiveStream = useCallback(async () => {
-    try {
-      await agoraService.publishTracks();
-      if (mountedRef.current) {
-        setIsLive(true);
-      }
-    } catch (error) {
-      console.error('Failed to start live stream:', error);
-      handleError(error);
-    }
-  }, [handleError]);
-
-  // Handle stream end
-  const handleEndStream = useCallback(async () => {
-    try {
-      await cleanup();
-      endStream(streamId);
-      // Force a full page refresh and redirect to home
-      window.location.href = '/';
-    } catch (error) {
-      console.error('Error ending stream:', error);
-      handleError(error);
-    }
-  }, [streamId, endStream, handleError, cleanup]);
 
   // Device control handlers
   const toggleVideo = useCallback(async () => {
@@ -263,47 +125,84 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       }
     } catch (error) {
       console.error('Error changing device:', error);
-      handleError(error);
+      setError(error instanceof Error ? error.message : 'Failed to change device');
     }
-  }, [handleError]);
+  }, []);
+
+  // Handle stream start
+  const startLiveStream = useCallback(async () => {
+    try {
+      await streamLifecycle.startStream(streamId);
+      startPreviewCaptures();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to start stream');
+    }
+  }, [streamId, startPreviewCaptures]);
+
+  // Handle stream end
+  const handleEndStream = useCallback(async () => {
+    try {
+      await streamLifecycle.cleanup(streamId);
+      endStream(streamId);
+      // Force a full page refresh and redirect to home
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error ending stream:', error);
+      setError(error instanceof Error ? error.message : 'Failed to end stream');
+    }
+  }, [streamId, endStream]);
 
   // Effect for initialization
   useEffect(() => {
     mountedRef.current = true;
 
-    if (!stream) return;
+    if (!stream || !videoRef.current) return;
 
     const initialize = async () => {
       try {
-        // Clear any existing streams first
-        await cleanup();
+        // Get available devices
+        const availableDevices = await agoraService.getDevices();
+        if (!mountedRef.current || !videoRef.current) return;
         
-        if (!mountedRef.current) return;
+        setDevices(availableDevices);
+        setControls(prev => ({
+          ...prev,
+          selectedCamera: prev.selectedCamera || availableDevices.cameras[0]?.deviceId || '',
+          selectedMicrophone: prev.selectedMicrophone || availableDevices.microphones[0]?.deviceId || ''
+        }));
 
-        // Set initialization timeout
-        connectionTimeoutRef.current = setTimeout(() => {
-          if (mountedRef.current) {
-            setError('Stream initialization timed out');
-            setIsInitializing(false);
-          }
-        }, INITIALIZATION_TIMEOUT);
-
-        await initializeStream();
+        // Initialize stream
+        await streamLifecycle.initializeStream(stream, videoRef.current);
       } catch (error) {
         if (mountedRef.current) {
-          handleError(error);
+          setError(error instanceof Error ? error.message : 'Failed to initialize stream');
         }
       }
     };
+
+    // Set up state change listener
+    const unsubscribe = streamLifecycle.onStateChange(streamId, (newState) => {
+      if (mountedRef.current) {
+        setStreamState(newState);
+        if (newState === StreamState.ERROR) {
+          const error = streamLifecycle.getError(streamId);
+          if (error) setError(error.message);
+        }
+      }
+    });
 
     initialize();
 
     // Cleanup on unmount
     return () => {
       mountedRef.current = false;
-      cleanup();
+      unsubscribe();
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+      }
+      streamLifecycle.cleanup(streamId).catch(console.error);
     };
-  }, [stream, initializeStream, cleanup, handleError]);
+  }, [stream, streamId]);
 
   // Device change listener
   useEffect(() => {
@@ -326,6 +225,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
   if (!stream) return null;
 
+  const isInitializing = streamState === StreamState.INITIALIZING;
+  const isLive = streamState === StreamState.LIVE;
+
   return (
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
       {/* Stream Header */}
@@ -346,7 +248,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
               End Stream
             </button>
           )}
-          {!isLive && (
+          {!isLive && streamState === StreamState.READY && (
             <button
               onClick={startLiveStream}
               disabled={isInitializing || !!error}
@@ -369,7 +271,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
           <button
             onClick={() => {
               setError('');
-              initializeStream();
+              if (videoRef.current) {
+                streamLifecycle.initializeStream(stream, videoRef.current);
+              }
             }}
             className="ml-4 text-blue-400 hover:text-blue-300"
           >
@@ -381,7 +285,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       {/* Video Preview */}
       <div className="relative">
         <div 
-          ref={videoRef} 
+          ref={videoRef}
           className="w-full aspect-video bg-gray-900 rounded-lg"
         >
           {isInitializing && (

@@ -30,6 +30,11 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
     router.push('/');
   };
 
+  // Handle stream reset
+  const handleReset = () => {
+    window.location.reload();
+  };
+
   // Show loading state while store initializes
   if (!isInitialized) {
     return (
@@ -71,7 +76,10 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
 
         {/* Stream Content */}
         <div className="w-full max-w-5xl mx-auto">
-          <StreamErrorBoundary onReset={() => window.location.reload()}>
+          <StreamErrorBoundary 
+            streamId={stream.id} 
+            onReset={handleReset}
+          >
             {isHost ? (
               <StreamComponent
                 key={`host-${streamId}`}

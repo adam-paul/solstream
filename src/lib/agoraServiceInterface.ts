@@ -1,5 +1,4 @@
 // src/lib/agoraServiceInterface.ts
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import type {
   IAgoraRTCClient,
   ICameraVideoTrack,
@@ -33,8 +32,8 @@ export interface IAgoraService {
   
   // Device Management
   getDevices(): Promise<MediaDevices>;
-  switchCamera(deviceId: string): Promise<void>;
-  switchMicrophone(deviceId: string): Promise<void>;
+  switchCamera(deviceId: string): Promise<ICameraVideoTrack>;
+  switchMicrophone(deviceId: string): Promise<IMicrophoneAudioTrack>;
   
   // Track Controls
   toggleVideo(enabled: boolean): Promise<void>;
