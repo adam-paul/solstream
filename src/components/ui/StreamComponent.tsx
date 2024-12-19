@@ -49,7 +49,8 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   const {
     getStream,
     endStream,
-    updatePreview
+    updatePreview,
+    broadcastStream
   } = useInitializedStreamStore();
   
   const stream = getStream(streamId);
@@ -145,13 +146,21 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       setError('');
       setStreamState(StreamState.LAUNCHING);
       
-      // Capture initial preview before going live
-      await capturePreview();
-      
-      // Start the stream first
+      // First handle the stream lifecycle
       await streamLifecycle.startStream(streamId);
       
-      // Only after successful stream start, update states
+      // Then handle preview - but don't fail if preview fails
+      try {
+        await capturePreview();
+      } catch (previewError) {
+        console.warn('Preview capture failed:', previewError);
+        // Continue with stream - preview isn't critical
+      }
+      
+      // Finally broadcast through socket
+      await broadcastStream(streamId);
+      
+      // Only after all succeeded, update UI state
       setIsPreLaunch(false);
       setStreamState(StreamState.LIVE);
       
@@ -161,6 +170,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       console.error('[StreamComponent] Failed to start stream:', error);
       setError(error instanceof Error ? error.message : 'Failed to start stream');
       setStreamState(StreamState.ERROR);
+      
       // Attempt cleanup
       try {
         await streamLifecycle.cleanup(streamId);
@@ -168,7 +178,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         console.error('[StreamComponent] Cleanup failed:', cleanupError);
       }
     }
-  }, [streamId, startPreviewCaptures, capturePreview]);
+  }, [streamId, broadcastStream, startPreviewCaptures, capturePreview]);
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {

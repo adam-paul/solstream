@@ -173,24 +173,40 @@ const useStreamStore = create<StreamState>()((set, get) => ({
   },
 
   // Stream actions
-  startStream: async (streamData) => {
+  startStream: async (streamData: Omit<Stream, 'id'>) => {
     const streamId = `stream-${crypto.randomUUID()}`;
     
     // Set role immediately for local state
     get().setUserRole(streamId, 'host');
-
-    // Store the stream in local state
-    get()._handleStreamStarted({
-      ...streamData,
-      id: streamId,
-      viewers: 0,
-      previewUrl: '',
-      previewLastUpdated: Date.now(),
-      previewError: false
-    });
-
-    // Don't emit socket event or set up listeners yet - this will be done when actually going live
-    return Promise.resolve(streamId);
+  
+    try {
+      // First store the stream locally
+      get()._handleStreamStarted({
+        ...streamData,
+        id: streamId,
+        viewers: 0,
+        previewUrl: '',
+        previewLastUpdated: Date.now(),
+        previewError: false
+      });
+  
+      // Then broadcast through socket
+      await socketService.startStream({
+        ...streamData,
+        id: streamId,
+        viewers: 0,
+        previewUrl: '',
+        previewLastUpdated: Date.now(),
+        previewError: false
+      });
+  
+      return streamId;
+    } catch (error) {
+      // If socket broadcast fails, clean up local state
+      get()._handleStreamEnded(streamId);
+      get().setUserRole(streamId, null);
+      throw error;
+    }
   },
 
   endStream: (id) => {
@@ -302,42 +318,39 @@ const useStreamStore = create<StreamState>()((set, get) => ({
     if (!stream) {
       throw new Error('Stream not found');
     }
-
+  
     // Return a promise that resolves when the stream is confirmed started
     return new Promise<string>((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Stream broadcast timed out'));
+      }, 10000); // 10 second timeout
+  
       // Set up a one-time listener for stream start confirmation
       const onStreamStarted = (confirmedStream: Stream) => {
         if (confirmedStream.id === streamId) {
-          // Clean up listener
-          socketService.onStreamStarted(onStreamStarted);
+          clearTimeout(timeoutId);
+          socketService.off('streamStarted', onStreamStarted);
+          socketService.off('error', onError);
           resolve(streamId);
         }
       };
-
+  
       // Set up a one-time error listener
       const onError = (error: { message: string }) => {
         if (error.message.includes(streamId)) {
-          // Clean up listeners
-          socketService.onStreamStarted(onStreamStarted);
-          socketService.onError(onError);
+          clearTimeout(timeoutId);
+          socketService.off('streamStarted', onStreamStarted);
+          socketService.off('error', onError);
           reject(new Error(error.message));
         }
       };
-
+  
       // Add listeners
       socketService.onStreamStarted(onStreamStarted);
       socketService.onError(onError);
-
+  
       // Emit socket event to actually start broadcasting
       socketService.startStream(stream);
-
-      // Set up timeout to prevent hanging
-      setTimeout(() => {
-        // Clean up listeners
-        socketService.onStreamStarted(onStreamStarted);
-        socketService.onError(onError);
-        reject(new Error('Stream broadcast timed out'));
-      }, 10000); // 10 second timeout
     });
   }
 }));
