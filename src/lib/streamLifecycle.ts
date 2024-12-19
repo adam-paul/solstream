@@ -1,6 +1,7 @@
 import { agoraService } from './agoraService';
 import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import type { Stream } from '@/types/stream';
+import { useStreamStore } from '@/lib/StreamStore';
 
 export const StreamState = {
   INITIALIZING: 'initializing',
@@ -141,6 +142,11 @@ export class StreamLifecycleManager {
 
         if (context.client && tracks.length > 0) {
           await context.client.publish(tracks);
+          
+          // Broadcast stream when going live
+          const store = useStreamStore.getState();
+          await store.broadcastStream(streamId);
+          
           this.setState(streamId, StreamState.LIVE);
         }
       } else {
