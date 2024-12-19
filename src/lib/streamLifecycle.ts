@@ -229,8 +229,8 @@ export class StreamLifecycleManager {
     [StreamState.READY]: [StreamState.LAUNCHING, StreamState.ERROR, StreamState.CLEANUP],
     [StreamState.LAUNCHING]: [StreamState.LIVE, StreamState.ERROR, StreamState.CLEANUP],
     [StreamState.LIVE]: [StreamState.ERROR, StreamState.CLEANUP],
-    [StreamState.ERROR]: [StreamState.CLEANUP],
-    [StreamState.CLEANUP]: []
+    [StreamState.ERROR]: [StreamState.CLEANUP, StreamState.INITIALIZING],
+    [StreamState.CLEANUP]: [StreamState.INITIALIZING] 
   };
 
   private async checkHostStatus(streamId: string): Promise<boolean> {

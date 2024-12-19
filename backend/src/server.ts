@@ -261,20 +261,25 @@ export class StreamServer {
       updatePreview: async ({ streamId, previewUrl }: { streamId: string; previewUrl: string }) => {
         try {
           const stream = await this.redisManager.getStream(streamId);
-          if (!stream || stream.creator !== userId) {
-            throw new Error('Unauthorized to update preview');
+          if (!stream) {
+            throw new Error('Stream not found');
           }
-
+    
+          // Verify creator authorization
+          if (stream.creator !== userId) {
+            socket.emit('error', {
+              message: 'Unauthorized to update preview',
+              statusCode: 403,
+              timestamp: new Date().toISOString()
+            });
+            return;
+          }
+    
           await this.redisManager.updatePreview(streamId, previewUrl);
           this.io.emit('previewUpdated', { streamId, previewUrl });
-
+    
         } catch (error) {
           this.handleError(socket, error);
-          try {
-            await this.redisManager.setPreviewError(streamId);
-          } catch (previewError) {
-            console.error('Failed to set preview error:', previewError);
-          }
         }
       },
 
