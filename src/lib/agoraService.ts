@@ -80,7 +80,17 @@ export class AgoraService implements IAgoraService {
     }
 
     try {
-      // Check device availability first
+      // First check if we have permission to access devices
+      const permissions = await Promise.all([
+        navigator.permissions.query({ name: 'camera' as PermissionName }),
+        navigator.permissions.query({ name: 'microphone' as PermissionName })
+      ]);
+
+      if (permissions.some(p => p.state === 'denied')) {
+        throw new Error('Camera or microphone access denied');
+      }
+
+      // Then check device availability
       const devices = await navigator.mediaDevices.enumerateDevices();
       const hasVideo = devices.some(device => device.kind === 'videoinput');
       const hasAudio = devices.some(device => device.kind === 'audioinput');
@@ -89,69 +99,55 @@ export class AgoraService implements IAgoraService {
         throw new Error(`Required devices not available: ${!hasVideo ? 'camera' : ''} ${!hasAudio ? 'microphone' : ''}`);
       }
 
-      // Request permissions with more specific constraints
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: {
-          deviceId: deviceConfig?.cameraId ? { exact: deviceConfig.cameraId } : undefined,
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 30 }
-        }, 
-        audio: {
-          deviceId: deviceConfig?.microphoneId ? { exact: deviceConfig.microphoneId } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
+      // Create tracks with fallback options
+      const createTracks = async () => {
+        try {
+          const [audioTrack, videoTrack] = await Promise.all([
+            AgoraRTC.createMicrophoneAudioTrack({
+              deviceId: deviceConfig?.microphoneId,
+              AEC: true,
+              ANS: true,
+              AGC: true
+            }).catch((error: Error) => {
+              console.error('[AgoraService] Audio track creation failed:', error);
+              return null;
+            }),
+            AgoraRTC.createCameraVideoTrack({
+              deviceId: deviceConfig?.cameraId,
+              encoderConfig: {
+                width: { min: 640, ideal: 1280, max: 1920 },
+                height: { min: 480, ideal: 720, max: 1080 },
+                frameRate: 30,
+                bitrateMin: 600,
+                bitrateMax: 1500
+              }
+            }).catch((error: Error) => {
+              console.error('[AgoraService] Video track creation failed:', error);
+              return null;
+            })
+          ]);
+
+          return { audioTrack, videoTrack };
+        } catch (error) {
+          console.error('[AgoraService] Track creation error:', error);
+          throw error;
         }
-      });
+      };
 
-      // Release the test stream immediately
-      stream.getTracks().forEach(track => track.stop());
+      const { audioTrack, videoTrack } = await createTracks();
 
-      // Create tracks with more detailed error handling
-      const [audioTrack, videoTrack] = await Promise.all([
-        AgoraRTC.createMicrophoneAudioTrack({
-          deviceId: deviceConfig?.microphoneId,
-          AEC: true,
-          ANS: true,
-          AGC: true
-        }).catch((error: Error) => {
-          console.error('Failed to create audio track:', error);
-          throw new Error(`Failed to initialize microphone: ${error.message}`);
-        }),
-        AgoraRTC.createCameraVideoTrack({
-          deviceId: deviceConfig?.cameraId,
-          encoderConfig: {
-            width: 1280,
-            height: 720,
-            frameRate: 30,
-            bitrateMin: 600,
-            bitrateMax: 1500
-          }
-        }).catch((error: Error) => {
-          console.error('Failed to create video track:', error);
-          throw new Error(`Failed to initialize camera: ${error.message}`);
-        })
-      ]);
+      if (!audioTrack && !videoTrack) {
+        throw new Error('Failed to initialize both audio and video tracks');
+      }
 
       this.audioTrack = audioTrack;
       this.videoTrack = videoTrack;
 
       return { audioTrack, videoTrack };
-    } catch (error: unknown) {
+    } catch (error) {
       // Ensure cleanup of any partially initialized tracks
-      if (this.audioTrack) {
-        await this.audioTrack.stop();
-        await this.audioTrack.close();
-        this.audioTrack = null;
-      }
-      if (this.videoTrack) {
-        await this.videoTrack.stop();
-        await this.videoTrack.close();
-        this.videoTrack = null;
-      }
+      await this.cleanup();
       
-      // Rethrow with more context
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to initialize media devices: ${errorMessage}`);
     }

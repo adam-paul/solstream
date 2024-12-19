@@ -32,9 +32,23 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     console.log('[StreamViewer] Remote user published:', { uid: user.uid, mediaType });
     
     try {
-      if (!videoRef.current) return;
+      if (!videoRef.current) {
+        console.warn('[StreamViewer] Video container not ready');
+        return;
+      }
       
+      // Subscribe to the remote user
       await agoraService.handleUserPublished(videoRef.current, user, mediaType);
+      
+      // If this is video, explicitly play it in the container
+      if (mediaType === 'video' && user.videoTrack) {
+        user.videoTrack.play(videoRef.current);
+      }
+      // If this is audio, play it directly
+      if (mediaType === 'audio' && user.audioTrack) {
+        user.audioTrack.play();
+      }
+      
       console.log('[StreamViewer] Successfully subscribed to:', mediaType);
     } catch (err) {
       console.error('[StreamViewer] Subscribe error:', err);
@@ -42,18 +56,32 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     }
   }, []);
 
+  // Handle user unpublished
+  const handleUserUnpublished = useCallback((user: IAgoraRTCRemoteUser) => {
+    console.log('[StreamViewer] Remote user unpublished:', user.uid);
+  }, []);
+
   // Initialize viewer
   const initializeViewer = useCallback(async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current) {
+      console.warn('[StreamViewer] Video container not ready');
+      return;
+    }
 
     try {
       await streamLifecycle.initializeStream(stream, videoRef.current, 'viewer');
+      
+      // Set up both published and unpublished handlers
       agoraService.onUserPublished(handleUserPublished);
+      agoraService.onUserUnpublished(handleUserUnpublished);
+      
       await streamLifecycle.startStream(stream.id);
+      setStreamState(StreamState.READY);
     } catch (error) {
+      console.error('[StreamViewer] Initialization error:', error);
       setError(error instanceof Error ? error.message : 'Failed to initialize viewer');
     }
-  }, [stream, handleUserPublished]);
+  }, [stream, handleUserPublished, handleUserUnpublished]);
 
   // Handle retry
   const handleRetry = useCallback(() => {

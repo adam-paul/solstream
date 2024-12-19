@@ -75,13 +75,13 @@ export class StreamLifecycleManager {
   async initializeStream(stream: Stream, videoContainer: HTMLDivElement, role: StreamRole = 'host'): Promise<void> {
     const streamId = stream.id;
 
-    // Wait for any ongoing cleanup to complete
+    // Wait for any ongoing cleanup
     const existingCleanup = this.cleanupPromises.get(streamId);
     if (existingCleanup) {
       await existingCleanup.catch(() => {});
     }
 
-    // Create new context with empty tracks
+    // Create new context
     this.contexts.set(streamId, {
       state: StreamState.INITIALIZING,
       stream,
@@ -93,30 +93,34 @@ export class StreamLifecycleManager {
     });
 
     try {
-      // Initialize Agora client with appropriate role
+      // Initialize Agora client
       const client = await agoraService.initializeClient({
         role: role === 'host' ? 'host' : 'audience',
         streamId
       });
 
-      // Update context with client
       const context = this.getContext(streamId);
       if (!context) return;
       context.client = client;
 
       if (role === 'host') {
-        // Request permissions and initialize tracks only for hosts
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        const { audioTrack, videoTrack } = await agoraService.initializeHostTracks();
-
-        context.tracks = {
-          video: videoTrack || null,
-          audio: audioTrack || null
-        };
-
-        // Play video preview for host
-        if (videoTrack && videoContainer) {
-          await videoTrack.play(videoContainer);
+        // For hosts, initialize tracks with retries
+        let retryCount = 0;
+        const maxRetries = 3;
+        
+        while (retryCount < maxRetries) {
+          try {
+            const { audioTrack, videoTrack } = await agoraService.initializeHostTracks();
+            context.tracks = {
+              video: videoTrack || null,
+              audio: audioTrack || null
+            };
+            break;
+          } catch (error) {
+            retryCount++;
+            if (retryCount === maxRetries) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
         }
       }
 
