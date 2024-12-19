@@ -76,7 +76,6 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
               <StreamComponent
                 key={`host-${streamId}`}
                 streamId={streamId}
-                onClose={handleClose}
               />
             ) : (
               <StreamViewer

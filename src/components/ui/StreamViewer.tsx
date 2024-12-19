@@ -35,6 +35,12 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       if (connectionTimeoutRef.current) {
         clearTimeout(connectionTimeoutRef.current);
       }
+      if (videoRef.current) {
+        // Clear the video container
+        while (videoRef.current.firstChild) {
+          videoRef.current.removeChild(videoRef.current.firstChild);
+        }
+      }
       await agoraService.cleanup();
       setUserRole(stream.id, null);
     } catch (err) {

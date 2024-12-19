@@ -8,7 +8,6 @@ import { DEFAULT_PREVIEW_CONFIG } from '@/config/preview';
 
 interface StreamComponentProps {
   streamId: string;
-  onClose: () => void;
 }
 
 interface StreamControls {
@@ -21,8 +20,7 @@ interface StreamControls {
 const INITIALIZATION_TIMEOUT = 15000; // 15 seconds
 
 const StreamComponent: React.FC<StreamComponentProps> = ({
-  streamId,
-  onClose,
+  streamId
 }) => {
   // Refs
   const videoRef = useRef<HTMLDivElement>(null);
@@ -123,7 +121,20 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         setIsInitializing(false);
       }, INITIALIZATION_TIMEOUT);
 
-      // Get available devices
+      // Request permissions first, before anything else
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
+        });
+        // Immediately stop the test stream
+        stream.getTracks().forEach(track => track.stop());
+      } catch (permissionError) {
+        console.error('Permission error:', permissionError);
+        throw new Error('Please allow camera and microphone access to stream');
+      }
+
+      // Only get devices after permissions are granted
       const availableDevices = await agoraService.getDevices();
       setDevices(availableDevices);
 
@@ -179,12 +190,13 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     try {
       await agoraService.cleanup();
       endStream(streamId);
-      onClose();
+      // Force a full page refresh and redirect to home
+      window.location.href = '/';
     } catch (error) {
       console.error('Error ending stream:', error);
       handleError(error);
     }
-  }, [streamId, endStream, onClose, handleError]);
+  }, [streamId, endStream, handleError]);
 
   // Device control handlers
   const toggleVideo = useCallback(async () => {
@@ -279,26 +291,29 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
           {stream.ticker && <p className="text-gray-400">${stream.ticker}</p>}
         </div>
         
-        {isLive ? (
-          <button 
-            onClick={handleEndStream}
-            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
-          >
-            End Stream
-          </button>
-        ) : (
-          <button
-            onClick={startLiveStream}
-            disabled={isInitializing || !!error}
-            className={`px-4 py-2 rounded-lg ${
-              isInitializing || error
-                ? 'bg-gray-500 cursor-not-allowed'
-                : 'bg-green-500 hover:bg-green-600'
-            }`}
-          >
-            Go Live
-          </button>
-        )}
+        <div className="flex gap-2">
+          {isLive && (
+            <button 
+              onClick={handleEndStream}
+              className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
+            >
+              End Stream
+            </button>
+          )}
+          {!isLive && (
+            <button
+              onClick={startLiveStream}
+              disabled={isInitializing || !!error}
+              className={`px-4 py-2 rounded-lg ${
+                isInitializing || error
+                  ? 'bg-gray-500 cursor-not-allowed'
+                  : 'bg-green-500 hover:bg-green-600'
+              }`}
+            >
+              Go Live
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Error Display */}
