@@ -3,6 +3,7 @@
 import { io, Socket } from 'socket.io-client';
 import { Stream } from '@/types/stream';
 import { sessionManager } from './sessionManager';
+import { useStreamStore } from './StreamStore';
 
 // Socket Event Types
 interface SocketEvents {
@@ -213,8 +214,23 @@ export class SocketService {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
     }
+    const stream = useStreamStore.getState().getStream(streamId);
+    if (!stream) {
+      throw new Error('Stream not found');
+    }
+    
+    // Verify creator before emitting
+    if (stream.creator !== sessionManager.getUserId()) {
+      console.warn('[SocketService] Unauthorized preview update attempt');
+      return;
+    }
+    
     console.log(`[SocketService] Emitting updatePreview for stream ${streamId}`);
-    this.socket.emit('updatePreview', { streamId, previewUrl });
+    this.socket.emit('updatePreview', { 
+      streamId, 
+      previewUrl,
+      userId: sessionManager.getUserId() 
+    });
   }
 
   // Strongly typed event listeners

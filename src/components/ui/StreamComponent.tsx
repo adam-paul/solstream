@@ -142,6 +142,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   // Handle stream start
   const startLiveStream = useCallback(async () => {
     try {
+      setError('');
+      setStreamState(StreamState.LAUNCHING);
+      
       // Capture initial preview before going live
       await capturePreview();
       
@@ -155,20 +158,45 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       // Start regular preview captures after a delay
       setTimeout(startPreviewCaptures, 5000);
     } catch (error) {
+      console.error('[StreamComponent] Failed to start stream:', error);
       setError(error instanceof Error ? error.message : 'Failed to start stream');
+      setStreamState(StreamState.ERROR);
+      // Attempt cleanup
+      try {
+        await streamLifecycle.cleanup(streamId);
+      } catch (cleanupError) {
+        console.error('[StreamComponent] Cleanup failed:', cleanupError);
+      }
     }
   }, [streamId, startPreviewCaptures, capturePreview]);
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
     try {
+      setError('');
+      // First set state to cleanup to prevent any new operations
+      setStreamState(StreamState.CLEANUP);
+      
+      // Clear any preview intervals
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+      }
+      
+      // Clean up stream lifecycle first
       await streamLifecycle.cleanup(streamId);
+      
+      // Then end the stream in the store
       endStream(streamId);
-      // Force a full page refresh and redirect to home
+      
+      // Finally redirect to home
       window.location.href = '/';
     } catch (error) {
-      console.error('Error ending stream:', error);
+      console.error('[StreamComponent] Error ending stream:', error);
       setError(error instanceof Error ? error.message : 'Failed to end stream');
+      // Even if cleanup fails, try to redirect
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 2000);
     }
   }, [streamId, endStream]);
 

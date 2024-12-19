@@ -225,9 +225,9 @@ export class StreamLifecycleManager {
 
   // Allowed state transitions
   private readonly validTransitions: Record<StreamStateType, StreamStateType[]> = {
-    [StreamState.INITIALIZING]: [StreamState.READY, StreamState.ERROR],
-    [StreamState.READY]: [StreamState.LAUNCHING, StreamState.ERROR],
-    [StreamState.LAUNCHING]: [StreamState.LIVE, StreamState.ERROR],
+    [StreamState.INITIALIZING]: [StreamState.READY, StreamState.ERROR, StreamState.CLEANUP],
+    [StreamState.READY]: [StreamState.LAUNCHING, StreamState.ERROR, StreamState.CLEANUP],
+    [StreamState.LAUNCHING]: [StreamState.LIVE, StreamState.ERROR, StreamState.CLEANUP],
     [StreamState.LIVE]: [StreamState.ERROR, StreamState.CLEANUP],
     [StreamState.ERROR]: [StreamState.CLEANUP],
     [StreamState.CLEANUP]: []
