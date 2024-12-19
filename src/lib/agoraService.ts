@@ -80,17 +80,44 @@ export class AgoraService implements IAgoraService {
     }
 
     try {
-      await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
+      // Check device availability first
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const hasVideo = devices.some(device => device.kind === 'videoinput');
+      const hasAudio = devices.some(device => device.kind === 'audioinput');
+
+      if (!hasVideo || !hasAudio) {
+        throw new Error(`Required devices not available: ${!hasVideo ? 'camera' : ''} ${!hasAudio ? 'microphone' : ''}`);
+      }
+
+      // Request permissions with more specific constraints
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: {
+          deviceId: deviceConfig?.cameraId ? { exact: deviceConfig.cameraId } : undefined,
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 }
+        }, 
+        audio: {
+          deviceId: deviceConfig?.microphoneId ? { exact: deviceConfig.microphoneId } : undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
       });
 
+      // Release the test stream immediately
+      stream.getTracks().forEach(track => track.stop());
+
+      // Create tracks with more detailed error handling
       const [audioTrack, videoTrack] = await Promise.all([
         AgoraRTC.createMicrophoneAudioTrack({
           deviceId: deviceConfig?.microphoneId,
           AEC: true,
           ANS: true,
           AGC: true
+        }).catch((error: Error) => {
+          console.error('Failed to create audio track:', error);
+          throw new Error(`Failed to initialize microphone: ${error.message}`);
         }),
         AgoraRTC.createCameraVideoTrack({
           deviceId: deviceConfig?.cameraId,
@@ -101,6 +128,9 @@ export class AgoraService implements IAgoraService {
             bitrateMin: 600,
             bitrateMax: 1500
           }
+        }).catch((error: Error) => {
+          console.error('Failed to create video track:', error);
+          throw new Error(`Failed to initialize camera: ${error.message}`);
         })
       ]);
 
@@ -108,9 +138,22 @@ export class AgoraService implements IAgoraService {
       this.videoTrack = videoTrack;
 
       return { audioTrack, videoTrack };
-    } catch (error) {
-      await this.cleanup();
-      throw error;
+    } catch (error: unknown) {
+      // Ensure cleanup of any partially initialized tracks
+      if (this.audioTrack) {
+        await this.audioTrack.stop();
+        await this.audioTrack.close();
+        this.audioTrack = null;
+      }
+      if (this.videoTrack) {
+        await this.videoTrack.stop();
+        await this.videoTrack.close();
+        this.videoTrack = null;
+      }
+      
+      // Rethrow with more context
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new Error(`Failed to initialize media devices: ${errorMessage}`);
     }
   }
 
@@ -248,27 +291,39 @@ export class AgoraService implements IAgoraService {
   async cleanup(): Promise<void> {
     console.log('[AgoraService] Starting cleanup...');
     try {
-      // Stop and close video track
+      // Stop and close video track with error handling
       if (this.videoTrack) {
-        this.videoTrack.stop();
-        await this.videoTrack.close();
+        try {
+          this.videoTrack.stop();
+          await this.videoTrack.close();
+        } catch (error) {
+          console.error('[AgoraService] Error cleaning up video track:', error);
+        }
         this.videoTrack = null;
       }
 
-      // Stop and close audio track
+      // Stop and close audio track with error handling
       if (this.audioTrack) {
-        this.audioTrack.stop();
-        await this.audioTrack.close();
+        try {
+          this.audioTrack.stop();
+          await this.audioTrack.close();
+        } catch (error) {
+          console.error('[AgoraService] Error cleaning up audio track:', error);
+        }
         this.audioTrack = null;
       }
 
-      // Leave and close client
+      // Leave and close client with error handling
       if (this.client) {
-        // Remove all event listeners
-        this.client.removeAllListeners();
-        // Only try to leave if connected
-        if (this.client.connectionState === 'CONNECTED') {
-          await this.client.leave();
+        try {
+          // Remove all event listeners
+          this.client.removeAllListeners();
+          // Only try to leave if connected
+          if (this.client.connectionState === 'CONNECTED') {
+            await this.client.leave();
+          }
+        } catch (error) {
+          console.error('[AgoraService] Error cleaning up client:', error);
         }
         this.client = null;
       }
