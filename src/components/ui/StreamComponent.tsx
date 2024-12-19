@@ -24,8 +24,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 }) => {
   // Refs
   const videoRef = useRef<HTMLDivElement>(null);
-  const initTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const connectionTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const previewIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const mountedRef = useRef<boolean>(true);
   
   // State
   const [error, setError] = useState<string>('');
@@ -55,8 +56,36 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   
   const stream = getStream(streamId);
 
+  // Cleanup function
+  const cleanup = useCallback(async () => {
+    console.log('[StreamComponent] Starting cleanup...');
+    try {
+      if (connectionTimeoutRef.current) {
+        clearTimeout(connectionTimeoutRef.current);
+        connectionTimeoutRef.current = undefined;
+      }
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+        previewIntervalRef.current = undefined;
+      }
+
+      // Clear video container
+      if (videoRef.current) {
+        while (videoRef.current.firstChild) {
+          videoRef.current.removeChild(videoRef.current.firstChild);
+        }
+      }
+
+      await agoraService.cleanup();
+    } catch (err) {
+      console.error('[StreamComponent] Cleanup error:', err);
+    }
+  }, []);
+
   // Error handling
   const handleError = useCallback((error: unknown) => {
+    if (!mountedRef.current) return;
+
     const message = error instanceof Error 
       ? error.message 
       : 'An unexpected error occurred';
@@ -64,14 +93,14 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     setError(message);
     setIsInitializing(false);
     
-    if (initTimeoutRef.current) {
-      clearTimeout(initTimeoutRef.current);
+    if (connectionTimeoutRef.current) {
+      clearTimeout(connectionTimeoutRef.current);
     }
   }, []);
 
   // Preview capture functionality
   const capturePreview = useCallback(async () => {
-    if (!videoRef.current || !isLive) return;
+    if (!videoRef.current || !isLive || !mountedRef.current) return;
 
     try {
       const video = videoRef.current.querySelector('video');
@@ -99,6 +128,8 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   }, [streamId, isLive, updatePreview]);
 
   const startPreviewCaptures = useCallback(() => {
+    if (!mountedRef.current) return;
+
     // Initial capture
     setTimeout(capturePreview, DEFAULT_PREVIEW_CONFIG.initialDelay);
 
@@ -111,17 +142,13 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
   // Initialize stream
   const initializeStream = useCallback(async () => {
+    if (!mountedRef.current) return;
+
     try {
       setIsInitializing(true);
       setError('');
 
-      // Set initialization timeout
-      initTimeoutRef.current = setTimeout(() => {
-        setError('Stream initialization timed out');
-        setIsInitializing(false);
-      }, INITIALIZATION_TIMEOUT);
-
-      // Request permissions first, before anything else
+      // Request permissions first
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
@@ -136,6 +163,8 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
       // Only get devices after permissions are granted
       const availableDevices = await agoraService.getDevices();
+      if (!mountedRef.current) return;
+      
       setDevices(availableDevices);
 
       // Set initial device selections if not already set
@@ -151,6 +180,8 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         streamId
       });
 
+      if (!mountedRef.current) return;
+
       // Initialize tracks
       await agoraService.initializeHostTracks({
         cameraId: controls.selectedCamera,
@@ -163,14 +194,16 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       }
 
       // Clear timeout and update state
-      clearTimeout(initTimeoutRef.current);
-      setIsInitializing(false);
+      if (mountedRef.current) {
+        setIsInitializing(false);
+        startPreviewCaptures();
+      }
 
-      // Start preview captures
-      startPreviewCaptures();
     } catch (error) {
       console.error('Stream initialization error:', error);
-      handleError(error);
+      if (mountedRef.current) {
+        handleError(error);
+      }
     }
   }, [streamId, controls.selectedCamera, controls.selectedMicrophone, handleError, startPreviewCaptures]);
 
@@ -178,7 +211,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   const startLiveStream = useCallback(async () => {
     try {
       await agoraService.publishTracks();
-      setIsLive(true);
+      if (mountedRef.current) {
+        setIsLive(true);
+      }
     } catch (error) {
       console.error('Failed to start live stream:', error);
       handleError(error);
@@ -188,7 +223,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   // Handle stream end
   const handleEndStream = useCallback(async () => {
     try {
-      await agoraService.cleanup();
+      await cleanup();
       endStream(streamId);
       // Force a full page refresh and redirect to home
       window.location.href = '/';
@@ -196,7 +231,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       console.error('Error ending stream:', error);
       handleError(error);
     }
-  }, [streamId, endStream, handleError]);
+  }, [streamId, endStream, handleError, cleanup]);
 
   // Device control handlers
   const toggleVideo = useCallback(async () => {
@@ -234,15 +269,28 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
   // Effect for initialization
   useEffect(() => {
-    let mounted = true;
+    mountedRef.current = true;
 
     if (!stream) return;
 
     const initialize = async () => {
       try {
+        // Clear any existing streams first
+        await cleanup();
+        
+        if (!mountedRef.current) return;
+
+        // Set initialization timeout
+        connectionTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current) {
+            setError('Stream initialization timed out');
+            setIsInitializing(false);
+          }
+        }, INITIALIZATION_TIMEOUT);
+
         await initializeStream();
       } catch (error) {
-        if (mounted) {
+        if (mountedRef.current) {
           handleError(error);
         }
       }
@@ -250,24 +298,22 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
     initialize();
 
-    // Cleanup
+    // Cleanup on unmount
     return () => {
-      mounted = false;
-      if (initTimeoutRef.current) {
-        clearTimeout(initTimeoutRef.current);
-      }
-      if (previewIntervalRef.current) {
-        clearInterval(previewIntervalRef.current);
-      }
-      agoraService.cleanup().catch(console.error);
+      mountedRef.current = false;
+      cleanup();
     };
-  }, [stream, initializeStream, handleError]);
+  }, [stream, initializeStream, cleanup, handleError]);
 
   // Device change listener
   useEffect(() => {
     const handleDevicesChanged = () => {
       agoraService.getDevices()
-        .then(setDevices)
+        .then(devices => {
+          if (mountedRef.current) {
+            setDevices(devices);
+          }
+        })
         .catch(error => console.error('Error updating devices:', error));
     };
 
