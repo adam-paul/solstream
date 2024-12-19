@@ -15,7 +15,12 @@ import type {
 // Only import AgoraRTC on client
 let AgoraRTC: any;
 if (typeof window !== 'undefined') {
-  AgoraRTC = require('agora-rtc-sdk-ng').default;
+  // Dynamic import to ensure proper loading
+  import('agora-rtc-sdk-ng').then(module => {
+    AgoraRTC = module.default;
+  }).catch(error => {
+    console.error('Failed to load AgoraRTC:', error);
+  });
 }
 
 export class AgoraService implements IAgoraService {
