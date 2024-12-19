@@ -85,6 +85,16 @@ export class StreamLifecycleManager {
     this.initializeTransitionConfigs();
   }
 
+  // Allowed state transitions
+  private readonly validTransitions: Record<StreamStateType, StreamStateType[]> = {
+    [StreamState.INITIALIZING]: [StreamState.READY, StreamState.ERROR, StreamState.CLEANUP],
+    [StreamState.READY]: [StreamState.LAUNCHING, StreamState.ERROR, StreamState.CLEANUP],
+    [StreamState.LAUNCHING]: [StreamState.LIVE, StreamState.ERROR, StreamState.CLEANUP],
+    [StreamState.LIVE]: [StreamState.ERROR, StreamState.CLEANUP],
+    [StreamState.ERROR]: [StreamState.CLEANUP, StreamState.INITIALIZING],
+    [StreamState.CLEANUP]: [StreamState.INITIALIZING] 
+  };
+
   // Add helper method for adding configs
   private addTransitionConfig(
     from: StreamStateType,
@@ -165,21 +175,47 @@ export class StreamLifecycleManager {
     from: StreamStateType,
     to: StreamStateType
   ): Promise<void> {
+    // First check if transition is valid in our state machine
+    const isValid = this.isValidTransition(from, to);
+    if (!isValid) {
+      throw new Error(`Invalid transition from ${from} to ${to}`);
+    }
+  
+    // Find transition config
     const config = this.transitionConfigs.find(
       c => c.from === from && c.to === to
     );
-
+  
+    // If no config exists but transition is valid in state machine, allow it
+    // This handles cases like transitioning to ERROR state
     if (!config) {
-      throw new Error(`Invalid transition from ${from} to ${to}`);
+      return;
     }
-
-    // Check all guards
+  
+    // Check all guards for the transition
     for (const guard of config.guards) {
       const canTransition = await guard.canTransition(streamId);
       if (!canTransition) {
         throw new Error(guard.errorMessage);
       }
     }
+  }
+  
+  // Split the state machine validation into its own method
+  private isValidTransition(from: StreamStateType, to: StreamStateType): boolean {
+    // Always allow transition to ERROR from any state
+    if (to === StreamState.ERROR) return true;
+    
+    // Check if transition is directly allowed
+    if (this.validTransitions[from]?.includes(to)) return true;
+    
+    // Allow indirect transition through ERROR state
+    if (this.validTransitions[from]?.includes(StreamState.ERROR) &&
+        this.validTransitions[StreamState.ERROR]?.includes(to)) {
+      return true;
+    }
+    
+    return false;
   }
 
   private async handleTransitionError(
@@ -222,16 +258,6 @@ export class StreamLifecycleManager {
   getTransitionHistory(streamId: string): TransitionHistory[] {
     return this.transitionHistory.get(streamId) || [];
   }
-
-  // Allowed state transitions
-  private readonly validTransitions: Record<StreamStateType, StreamStateType[]> = {
-    [StreamState.INITIALIZING]: [StreamState.READY, StreamState.ERROR, StreamState.CLEANUP],
-    [StreamState.READY]: [StreamState.LAUNCHING, StreamState.ERROR, StreamState.CLEANUP],
-    [StreamState.LAUNCHING]: [StreamState.LIVE, StreamState.ERROR, StreamState.CLEANUP],
-    [StreamState.LIVE]: [StreamState.ERROR, StreamState.CLEANUP],
-    [StreamState.ERROR]: [StreamState.CLEANUP, StreamState.INITIALIZING],
-    [StreamState.CLEANUP]: [StreamState.INITIALIZING] 
-  };
 
   private async checkHostStatus(streamId: string): Promise<boolean> {
     const stream = useStreamStore.getState().getStream(streamId);
@@ -438,6 +464,22 @@ export class StreamLifecycleManager {
     }
   }
 
+  private _forceState(streamId: string, state: StreamStateType): void {
+    const context = this.contexts.get(streamId);
+    if (!context) return;
+    
+    context.state = state;
+    context.lastStateUpdate = Date.now();
+    context.stateTransitions.push({
+      from: context.state,
+      to: state,
+      timestamp: Date.now()
+    });
+    
+    // Notify listeners of forced state change
+    this.stateListeners.get(streamId)?.forEach(listener => listener(state));
+  }
+
   private async restoreConnection(streamId: string): Promise<void> {
     const context = this.contexts.get(streamId);
     if (!context) return;
@@ -497,11 +539,15 @@ export class StreamLifecycleManager {
     
     const context = this.contexts.get(streamId);
     if (!context) return;
-
+  
     try {
-      // Set state to cleanup to prevent new operations
+      // First forcefully set error state to allow cleanup
+      // This is using a private method to bypass normal transition validation
+      this._forceState(streamId, StreamState.ERROR);
+      
+      // Now we can safely transition to CLEANUP
       await this.setState(streamId, StreamState.CLEANUP);
-
+  
       // Clean up tracks
       if (context.tracks.video) {
         try {
@@ -511,7 +557,7 @@ export class StreamLifecycleManager {
           console.error('[StreamLifecycle] Video cleanup error:', error);
         }
       }
-
+  
       if (context.tracks.audio) {
         try {
           context.tracks.audio.stop();
@@ -520,7 +566,7 @@ export class StreamLifecycleManager {
           console.error('[StreamLifecycle] Audio cleanup error:', error);
         }
       }
-
+  
       // Clean up client
       if (context.client) {
         try {
@@ -534,13 +580,16 @@ export class StreamLifecycleManager {
           console.error('[StreamLifecycle] Client cleanup error:', error);
         }
       }
-
+  
       // Clear context and listeners
       this.contexts.delete(streamId);
       this.stateListeners.delete(streamId);
-
+  
     } catch (error) {
       console.error('[StreamLifecycle] Cleanup error:', error);
+      // Even if cleanup fails, try to clear the context
+      this.contexts.delete(streamId);
+      this.stateListeners.delete(streamId);
       throw error;
     }
   }
