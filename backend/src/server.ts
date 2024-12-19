@@ -38,7 +38,7 @@ interface UserState {
   lastActive: Date;
 }
 
-class StreamServer {
+export class StreamServer {
   private app: express.Express;
   private httpServer: ReturnType<typeof createServer>;
   private io: Server<ClientToServerEvents, ServerToClientEvents>;
@@ -60,7 +60,7 @@ class StreamServer {
     // Initialize Socket.IO with CORS config
     this.io = new Server(this.httpServer, {
       cors: {
-        origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        origin: (origin, callback) => {
           if (!origin || this.allowedOrigins.includes(origin)) {
             callback(null, true);
           } else {
@@ -82,9 +82,9 @@ class StreamServer {
   }
 
   private setupMiddleware() {
-    this.io = new Server(this.httpServer, {
-      transports: ['websocket']
-    });
+    // If needed, set up Express middlewares here (e.g., cors(), body parser, etc.)
+    // Do NOT re-initialize Socket.IO here, as it would cause the "handleUpgrade()" issue.
+    this.app.use(cors());
   }
 
   private setupSocketServer() {
@@ -92,12 +92,12 @@ class StreamServer {
   }
 
   private setupRoutes() {
-    // Health check endpoint - no CORS middleware
+    // Health check endpoint
     this.app.get('/health', (_, res) => {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
     });
 
-    // Get all streams endpoint - no CORS middleware
+    // Fetch all streams
     this.app.get('/api/streams', async (_, res) => {
       try {
         const streams = await this.redisManager.getAllStreams();
