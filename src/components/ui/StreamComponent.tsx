@@ -142,16 +142,20 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
   // Handle stream start
   const startLiveStream = useCallback(async () => {
     try {
-      setIsPreLaunch(false);
-      
       // Capture initial preview before going live
       await capturePreview();
       
+      // Start the stream first
       await streamLifecycle.startStream(streamId);
-      startPreviewCaptures();
+      
+      // Only after successful stream start, update states
+      setIsPreLaunch(false);
+      setStreamState(StreamState.LIVE);
+      
+      // Start regular preview captures after a delay
+      setTimeout(startPreviewCaptures, 5000);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to start stream');
-      setIsPreLaunch(true);
     }
   }, [streamId, startPreviewCaptures, capturePreview]);
 
@@ -190,6 +194,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         // Initialize stream
         await streamLifecycle.initializeStream(stream, videoRef.current, 'host');
         setStreamState(StreamState.READY);
+        setIsPreLaunch(true); // Ensure we start in pre-launch mode
       } catch (error) {
         if (mountedRef.current) {
           setError(error instanceof Error ? error.message : 'Failed to initialize stream');

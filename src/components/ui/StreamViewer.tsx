@@ -69,6 +69,10 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     }
 
     try {
+      // Wait for Agora to be ready
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Initialize stream
       await streamLifecycle.initializeStream(stream, videoRef.current, 'viewer');
       
       // Set up both published and unpublished handlers
@@ -120,11 +124,13 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       }
     });
 
-    initializeViewer();
+    // Add a small delay before initialization to ensure Agora is ready
+    const initTimer = setTimeout(initializeViewer, 1000);
 
     return () => {
       mountedRef.current = false;
       unsubscribe();
+      clearTimeout(initTimer);
       streamLifecycle.cleanup(stream.id).catch(console.error);
     };
   }, [stream, initializeViewer, isStreamActive, isStreamHost, setUserRole]);
