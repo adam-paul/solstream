@@ -47,8 +47,9 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     if (!videoRef.current) return;
 
     try {
-      await streamLifecycle.initializeStream(stream, videoRef.current);
+      await streamLifecycle.initializeStream(stream, videoRef.current, 'viewer');
       agoraService.onUserPublished(handleUserPublished);
+      await streamLifecycle.startStream(stream.id);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to initialize viewer');
     }

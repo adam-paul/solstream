@@ -55,11 +55,11 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
 
   // Preview capture functionality
   const capturePreview = useCallback(async () => {
-    if (!videoRef.current || streamState !== StreamState.LIVE || !mountedRef.current) return;
+    if (!videoRef.current || !mountedRef.current || !streamLifecycle.isPreviewEnabled(streamId)) return;
 
     try {
       const video = videoRef.current.querySelector('video');
-      if (!video) return;
+      if (!video || video.readyState < 2) return; // Wait for video to be ready
 
       const canvas = document.createElement('canvas');
       const scaleFactor = 0.25;
@@ -72,7 +72,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const previewUrl = canvas.toDataURL('image/jpeg', 0.1);
 
-      if (previewUrl.length <= 100000) {
+      if (previewUrl.length <= 100000 && mountedRef.current) {
         updatePreview(streamId, previewUrl);
       }
 
@@ -80,13 +80,22 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
     } catch (error) {
       console.error('Preview capture error:', error);
     }
-  }, [streamId, streamState, updatePreview]);
+  }, [streamId, updatePreview]);
 
   const startPreviewCaptures = useCallback(() => {
     if (!mountedRef.current) return;
 
-    // Initial capture
-    setTimeout(capturePreview, DEFAULT_PREVIEW_CONFIG.initialDelay);
+    // Clear any existing interval
+    if (previewIntervalRef.current) {
+      clearInterval(previewIntervalRef.current);
+    }
+
+    // Initial capture with retry
+    const attemptInitialCapture = () => {
+      capturePreview().catch(console.error);
+    };
+    
+    setTimeout(attemptInitialCapture, DEFAULT_PREVIEW_CONFIG.initialDelay);
 
     // Regular captures
     previewIntervalRef.current = setInterval(
@@ -172,7 +181,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({
         }));
 
         // Initialize stream
-        await streamLifecycle.initializeStream(stream, videoRef.current);
+        await streamLifecycle.initializeStream(stream, videoRef.current, 'host');
       } catch (error) {
         if (mountedRef.current) {
           setError(error instanceof Error ? error.message : 'Failed to initialize stream');

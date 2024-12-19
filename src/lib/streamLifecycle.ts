@@ -11,6 +11,7 @@ export const StreamState = {
 } as const;
 
 export type StreamStateType = typeof StreamState[keyof typeof StreamState];
+export type StreamRole = 'host' | 'viewer';
 
 interface StreamTracks {
   video: ICameraVideoTrack | null;
@@ -23,12 +24,15 @@ interface StreamContext {
   client: IAgoraRTCClient | null;
   tracks: StreamTracks;
   videoContainer: HTMLDivElement | null;
+  role: StreamRole;
   error?: Error;
+  isPreviewEnabled?: boolean;
 }
 
 export class StreamLifecycleManager {
   private contexts: Map<string, StreamContext> = new Map();
   private stateListeners: Map<string, Set<(state: StreamStateType) => void>> = new Map();
+  private cleanupPromises: Map<string, Promise<void>> = new Map();
 
   private getContext(streamId: string): StreamContext | undefined {
     return this.contexts.get(streamId);
@@ -38,8 +42,16 @@ export class StreamLifecycleManager {
     const context = this.getContext(streamId);
     if (!context) return;
 
+    const oldState = context.state;
     context.state = newState;
     if (error) context.error = error;
+
+    // Handle state-specific logic
+    if (newState === StreamState.LIVE && oldState !== StreamState.LIVE) {
+      context.isPreviewEnabled = true;
+    } else if (newState === StreamState.CLEANUP) {
+      context.isPreviewEnabled = false;
+    }
 
     // Notify listeners
     this.stateListeners.get(streamId)?.forEach(listener => listener(newState));
@@ -60,8 +72,14 @@ export class StreamLifecycleManager {
     }
   }
 
-  async initializeStream(stream: Stream, videoContainer: HTMLDivElement): Promise<void> {
+  async initializeStream(stream: Stream, videoContainer: HTMLDivElement, role: StreamRole = 'host'): Promise<void> {
     const streamId = stream.id;
+
+    // Wait for any ongoing cleanup to complete
+    const existingCleanup = this.cleanupPromises.get(streamId);
+    if (existingCleanup) {
+      await existingCleanup.catch(() => {});
+    }
 
     // Create new context with empty tracks
     this.contexts.set(streamId, {
@@ -69,33 +87,35 @@ export class StreamLifecycleManager {
       stream,
       client: null,
       tracks: { video: null, audio: null },
-      videoContainer
+      videoContainer,
+      role,
+      isPreviewEnabled: false
     });
 
     try {
-      // Request permissions first
-      await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-
-      // Initialize Agora client
+      // Initialize Agora client with appropriate role
       const client = await agoraService.initializeClient({
-        role: 'host',
+        role: role === 'host' ? 'host' : 'audience',
         streamId
       });
 
-      // Initialize tracks
-      const { audioTrack, videoTrack } = await agoraService.initializeHostTracks();
-
-      // Update context
+      // Update context with client
       const context = this.getContext(streamId);
-      if (context) {
-        context.client = client;
+      if (!context) return;
+      context.client = client;
+
+      if (role === 'host') {
+        // Request permissions and initialize tracks only for hosts
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        const { audioTrack, videoTrack } = await agoraService.initializeHostTracks();
+
         context.tracks = {
           video: videoTrack || null,
           audio: audioTrack || null
         };
 
-        // Play video preview
-        if (videoTrack) {
+        // Play video preview for host
+        if (videoTrack && videoContainer) {
           await videoTrack.play(videoContainer);
         }
       }
@@ -115,15 +135,20 @@ export class StreamLifecycleManager {
     }
 
     try {
-      const tracks = [];
-      if (context.tracks.audio) tracks.push(context.tracks.audio);
-      if (context.tracks.video) tracks.push(context.tracks.video);
+      if (context.role === 'host') {
+        const tracks = [];
+        if (context.tracks.audio) tracks.push(context.tracks.audio);
+        if (context.tracks.video) tracks.push(context.tracks.video);
 
-      if (context.client && tracks.length > 0) {
-        await context.client.publish(tracks);
-        this.setState(streamId, StreamState.LIVE);
+        if (context.client && tracks.length > 0) {
+          await context.client.publish(tracks);
+          this.setState(streamId, StreamState.LIVE);
+        } else {
+          throw new Error('No tracks available to publish');
+        }
       } else {
-        throw new Error('No tracks available to publish');
+        // For viewers, we just mark the stream as live
+        this.setState(streamId, StreamState.LIVE);
       }
     } catch (error) {
       this.setState(streamId, StreamState.ERROR, error instanceof Error ? error : new Error('Failed to start stream'));
@@ -133,34 +158,47 @@ export class StreamLifecycleManager {
   }
 
   async cleanup(streamId: string): Promise<void> {
-    this.setState(streamId, StreamState.CLEANUP);
+    // Create cleanup promise
+    const cleanupPromise = (async () => {
+      this.setState(streamId, StreamState.CLEANUP);
 
-    try {
-      const context = this.getContext(streamId);
-      if (!context) return;
+      try {
+        const context = this.getContext(streamId);
+        if (!context) return;
 
-      // Clean up tracks first
-      await this.cleanupTracks(context.tracks);
-
-      // Clear video container
-      if (context.videoContainer) {
-        while (context.videoContainer.firstChild) {
-          context.videoContainer.firstChild.remove();
+        // Clean up tracks only if we're the host
+        if (context.role === 'host') {
+          await this.cleanupTracks(context.tracks);
         }
-      }
 
-      // Clean up Agora client
-      if (context.client) {
-        await context.client.leave();
-      }
+        // Clear video container safely
+        if (context.videoContainer && context.videoContainer.parentNode) {
+          while (context.videoContainer.firstChild) {
+            context.videoContainer.removeChild(context.videoContainer.firstChild);
+          }
+        }
 
-      // Remove context and listeners
-      this.contexts.delete(streamId);
-      this.stateListeners.delete(streamId);
-    } catch (error) {
-      console.error('[StreamLifecycle] Cleanup error:', error);
-      throw error;
-    }
+        // Clean up Agora client
+        if (context.client) {
+          await context.client.leave();
+        }
+
+        // Remove context and listeners
+        this.contexts.delete(streamId);
+        this.stateListeners.delete(streamId);
+      } catch (error) {
+        console.error('[StreamLifecycle] Cleanup error:', error);
+        throw error;
+      } finally {
+        this.cleanupPromises.delete(streamId);
+      }
+    })();
+
+    // Store cleanup promise
+    this.cleanupPromises.set(streamId, cleanupPromise);
+
+    // Wait for cleanup to complete
+    await cleanupPromise;
   }
 
   async toggleTrack(streamId: string, type: 'video' | 'audio', enabled: boolean): Promise<void> {
@@ -236,6 +274,14 @@ export class StreamLifecycleManager {
 
   getError(streamId: string): Error | undefined {
     return this.getContext(streamId)?.error;
+  }
+
+  getRole(streamId: string): StreamRole | undefined {
+    return this.getContext(streamId)?.role;
+  }
+
+  isPreviewEnabled(streamId: string): boolean {
+    return this.getContext(streamId)?.isPreviewEnabled ?? false;
   }
 }
 
