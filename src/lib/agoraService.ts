@@ -42,6 +42,9 @@ export class AgoraService implements IAgoraService {
     }
 
     try {
+      // Ensure cleanup of any existing client
+      await this.cleanup();
+
       const client = AgoraRTC.createClient({
         mode: "live",
         codec: "vp8",
@@ -237,28 +240,34 @@ export class AgoraService implements IAgoraService {
   }
 
   async cleanup(): Promise<void> {
+    console.log('[AgoraService] Starting cleanup...');
     try {
+      // Stop and close video track
       if (this.videoTrack) {
         this.videoTrack.stop();
         await this.videoTrack.close();
         this.videoTrack = null;
       }
 
+      // Stop and close audio track
       if (this.audioTrack) {
         this.audioTrack.stop();
         await this.audioTrack.close();
         this.audioTrack = null;
       }
 
+      // Leave and close client
       if (this.client) {
+        // Remove all event listeners
         this.client.removeAllListeners();
+        // Only try to leave if connected
         if (this.client.connectionState === 'CONNECTED') {
           await this.client.leave();
         }
         this.client = null;
       }
     } catch (error) {
-      console.error('Cleanup error:', error);
+      console.error('[AgoraService] Cleanup error:', error);
       throw error;
     }
   }
