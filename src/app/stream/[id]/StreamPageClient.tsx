@@ -1,4 +1,4 @@
-// src/app/stream/[id]/StreamPageClient.tsx
+// StreamPageClient.tsx
 'use client'
 
 import React from 'react';
@@ -12,7 +12,7 @@ interface StreamPageClientProps {
 
 export default function StreamPageClient({ streamId }: StreamPageClientProps) {
   const router = useRouter();
-  const { getStream } = useStreamStore();
+  const { getStream, isStreamHost } = useStreamStore();
   const stream = getStream(streamId);
 
   if (!stream) {
@@ -42,7 +42,10 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
         </button>
 
         <div className="w-full max-w-5xl mx-auto">
-          <StreamContainer stream={stream} />
+          <StreamContainer 
+            stream={stream} 
+            isHost={isStreamHost(stream.id)} // Add this line
+          />
         </div>
       </div>
     </div>
