@@ -82,8 +82,11 @@ const useStreamStore = create<StreamState>()((set, get) => ({
   // Store initialization
   initializeStore: async () => {
     try {
-      await socketService.connect();
+      const socket = await socketService.connect();
       
+      if (!socket.connected) {
+        throw new Error('Socket failed to connect');
+      }
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/streams`
       );

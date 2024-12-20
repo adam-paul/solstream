@@ -42,15 +42,27 @@ export class SocketService {
       return this.socket;
     }
 
-    this.socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001', {
-      transports: ['websocket'],
-      secure: true,
-      query: {
-        userId: sessionManager.getUserId()
-      }
-    }) as Socket<ServerToClientEvents, ClientToServerEvents>;
+    return new Promise((resolve, reject) => {
+      this.socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001', {
+        transports: ['websocket'],
+        secure: true,
+        query: {
+          userId: sessionManager.getUserId()
+        }
+      }) as Socket<ServerToClientEvents, ClientToServerEvents>;
 
-    return this.socket;
+      this.socket.on('connect', () => {
+        console.log('WebSocket Connected');
+        resolve(this.socket!);
+      });
+
+      this.socket.on('connect_error', (error) => {
+        reject(error);
+      });
+
+      // Set a reasonable timeout
+      setTimeout(() => reject(new Error('Socket connection timeout')), 5000);
+    });
   }
 
   startStream(stream: Stream): void {
