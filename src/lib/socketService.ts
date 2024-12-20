@@ -3,50 +3,31 @@
 import { io, Socket } from 'socket.io-client';
 import { Stream } from '@/types/stream';
 import { sessionManager } from './sessionManager';
-import { useStreamStore } from './StreamStore';
 
-// Socket Event Types
-interface SocketEvents {
-  // Server -> Client events
+interface ServerToClientEvents {
   streamStarted: (stream: Stream) => void;
   streamEnded: (streamId: string) => void;
   viewerJoined: (data: { streamId: string; count: number }) => void;
   viewerLeft: (data: { streamId: string; count: number }) => void;
-  viewerCountUpdated: (data: { streamId: string; count: number }) => void;
   previewUpdated: (data: { streamId: string; previewUrl: string }) => void;
   roleChanged: (data: { streamId: string; role: 'host' | 'viewer' | null }) => void;
-  error: (error: { message: string }) => void;
-  
-  // Client -> Server events
+  error: (error: { message: string; statusCode?: number }) => void;
+}
+
+interface ClientToServerEvents {
   startStream: (stream: Stream) => void;
   endStream: (streamId: string) => void;
   joinStream: (streamId: string) => void;
   leaveStream: (streamId: string) => void;
-  updateViewerCount: (data: { streamId: string; count: number }) => void;
   updatePreview: (data: { streamId: string; previewUrl: string }) => void;
 }
 
-type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
-
-interface ConnectionStatus {
-  state: ConnectionState;
-  error?: Error;
-  lastConnected?: Date;
-  reconnectAttempt?: number;
-}
-
 export class SocketService {
-  private socket: Socket | null = null;
+  private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
   private static instance: SocketService;
-  private connectionStatus: ConnectionStatus = { state: 'disconnected' };
-  private eventListeners: Map<keyof SocketEvents, Set<(data: any) => void>> = new Map();
-  private reconnectTimer?: NodeJS.Timeout;
-  private readonly MAX_RECONNECT_ATTEMPTS = 5;
-  private readonly RECONNECT_INTERVAL = 5000; // 5 seconds
 
   private constructor() {
     if (typeof window === 'undefined') return;
-    this.setupEventListeners();
   }
 
   static getInstance(): SocketService {
@@ -56,129 +37,26 @@ export class SocketService {
     return SocketService.instance;
   }
 
-  private setupEventListeners() {
-    // Initialize empty Sets for all event types
-    Object.keys(this.eventListeners).forEach(event => {
-      this.eventListeners.set(event as keyof SocketEvents, new Set());
-    });
-  }
-
-  getConnectionStatus(): ConnectionStatus {
-    return { ...this.connectionStatus };
-  }
-
-  async connect(): Promise<Socket> {
+  async connect(): Promise<Socket<ServerToClientEvents, ClientToServerEvents>> {
     if (this.socket?.connected) {
       return this.socket;
     }
 
-    return new Promise((resolve, reject) => {
-      try {
-        this.updateConnectionStatus('connecting');
-
-        this.socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001', {
-          transports: ['websocket'],
-          secure: true,
-          reconnection: false, // We'll handle reconnection manually
-          query: {
-            userId: sessionManager.getUserId()
-          }
-        });
-
-        // Connection event handlers
-        this.socket.on('connect', () => {
-          this.updateConnectionStatus('connected');
-          this.connectionStatus.lastConnected = new Date();
-          this.connectionStatus.reconnectAttempt = 0;
-          resolve(this.socket!);
-        });
-
-        this.socket.on('connect_error', (error) => {
-          console.error('Socket connection error:', error);
-          this.handleConnectionError(error);
-          reject(error);
-        });
-
-        this.socket.on('disconnect', (reason) => {
-          console.log('Socket disconnected:', reason);
-          this.handleDisconnect(reason);
-        });
-
-        // Debug logging in development
-        if (process.env.NODE_ENV === 'development') {
-          this.socket.onAny((event, ...args) => {
-            console.log('Socket event:', event, args);
-          });
-        }
-
-      } catch (error) {
-        console.error('Socket initialization error:', error);
-        this.handleConnectionError(error as Error);
-        reject(error);
+    this.socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001', {
+      transports: ['websocket'],
+      secure: true,
+      query: {
+        userId: sessionManager.getUserId()
       }
-    });
+    }) as Socket<ServerToClientEvents, ClientToServerEvents>;
+
+    return this.socket;
   }
 
-  private updateConnectionStatus(state: ConnectionState, error?: Error) {
-    this.connectionStatus = {
-      ...this.connectionStatus,
-      state,
-      error,
-      ...(state === 'connected' && { lastConnected: new Date() })
-    };
-    
-    // Notify any listeners about the connection status change
-    this.notifyEventListeners('connectionStatusChanged', this.connectionStatus);
-  }
-
-  private handleConnectionError(error: Error) {
-    this.updateConnectionStatus('error', error);
-    if (this.connectionStatus.reconnectAttempt === undefined) {
-      this.connectionStatus.reconnectAttempt = 0;
-    }
-    
-    if (this.connectionStatus.reconnectAttempt < this.MAX_RECONNECT_ATTEMPTS) {
-      this.scheduleReconnect();
-    }
-  }
-
-  private handleDisconnect(reason: string) {
-    this.updateConnectionStatus('disconnected');
-    if (reason === 'io server disconnect') {
-      // The disconnection was initiated by the server, we shouldn't attempt to reconnect
-      return;
-    }
-    this.scheduleReconnect();
-  }
-
-  private scheduleReconnect() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-    }
-
-    this.reconnectTimer = setTimeout(() => {
-      if (this.connectionStatus.reconnectAttempt! < this.MAX_RECONNECT_ATTEMPTS) {
-        this.connectionStatus.reconnectAttempt!++;
-        this.updateConnectionStatus('reconnecting');
-        this.connect().catch(console.error);
-      }
-    }, this.RECONNECT_INTERVAL);
-  }
-
-  // Strongly typed event emitters
   startStream(stream: Stream): void {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
     }
-    
-    const errorHandler = (error: { message: string }) => {
-      if (error.message.includes(stream.id)) {
-        this.socket?.off('error', errorHandler);
-        throw new Error(error.message);
-      }
-    };
-    
-    this.socket.on('error', errorHandler);
     this.socket.emit('startStream', stream);
   }
 
@@ -203,157 +81,61 @@ export class SocketService {
     this.socket.emit('leaveStream', streamId);
   }
 
-  updateViewerCount(streamId: string, count: number): void {
-    if (!this.socket?.connected) {
-      throw new Error('Socket not connected');
-    }
-    this.socket.emit('updateViewerCount', { streamId, count });
-  }
-
   updatePreview(streamId: string, previewUrl: string): void {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
     }
-    const stream = useStreamStore.getState().getStream(streamId);
-    if (!stream) {
-      throw new Error('Stream not found');
-    }
-    
-    // Verify creator before emitting
-    if (stream.creator !== sessionManager.getUserId()) {
-      console.warn('[SocketService] Unauthorized preview update attempt');
-      return;
-    }
-    
-    console.log(`[SocketService] Emitting updatePreview for stream ${streamId}`);
-    this.socket.emit('updatePreview', { 
-      streamId, 
-      previewUrl,
-      userId: sessionManager.getUserId() 
-    });
+    this.socket.emit('updatePreview', { streamId, previewUrl });
   }
 
-  // Strongly typed event listeners
-  onStreamStarted(callback: SocketEvents['streamStarted']): () => void {
-    if (!this.socket?.connected) {
-      throw new Error('Socket not initialized');
-    }
-    
-    const wrappedCallback = (stream: Stream) => {
-      callback(stream);
-    };
-    
-    this.socket.on('streamStarted', wrappedCallback);
-    const listeners = this.eventListeners.get('streamStarted') || new Set();
-    listeners.add(callback);
-    this.eventListeners.set('streamStarted', listeners);
-
-    return () => {
-      if (this.socket) {
-        this.socket.off('streamStarted', wrappedCallback);
-        const listeners = this.eventListeners.get('streamStarted');
-        if (listeners) {
-          listeners.delete(callback);
-        }
-      }
-    };
+  onStreamStarted(callback: ServerToClientEvents['streamStarted']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('streamStarted', callback);
+    return () => this.socket?.off('streamStarted', callback);
   }
 
-  onStreamEnded(callback: SocketEvents['streamEnded']): () => void {
-    return this.addEventHandler('streamEnded', callback);
+  onStreamEnded(callback: ServerToClientEvents['streamEnded']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('streamEnded', callback);
+    return () => this.socket?.off('streamEnded', callback);
   }
 
-  onViewerJoined(callback: SocketEvents['viewerJoined']): () => void {
-    return this.addEventHandler('viewerJoined', callback);
+  onViewerJoined(callback: ServerToClientEvents['viewerJoined']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('viewerJoined', callback);
+    return () => this.socket?.off('viewerJoined', callback);
   }
 
-  onViewerLeft(callback: SocketEvents['viewerLeft']): () => void {
-    return this.addEventHandler('viewerLeft', callback);
+  onViewerLeft(callback: ServerToClientEvents['viewerLeft']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('viewerLeft', callback);
+    return () => this.socket?.off('viewerLeft', callback);
   }
 
-  onViewerCountUpdated(callback: SocketEvents['viewerCountUpdated']): () => void {
-    return this.addEventHandler('viewerCountUpdated', callback);
+  onPreviewUpdated(callback: ServerToClientEvents['previewUpdated']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('previewUpdated', callback);
+    return () => this.socket?.off('previewUpdated', callback);
   }
 
-  onPreviewUpdated(callback: SocketEvents['previewUpdated']): () => void {
-    return this.addEventHandler('previewUpdated', callback);
+  onRoleChanged(callback: ServerToClientEvents['roleChanged']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('roleChanged', callback);
+    return () => this.socket?.off('roleChanged', callback);
   }
 
-  onRoleChanged(callback: SocketEvents['roleChanged']): () => void {
-    return this.addEventHandler('roleChanged', callback);
-  }
-
-  onError(callback: SocketEvents['error']): () => void {
-    return this.addEventHandler('error', callback);
-  }
-
-  private addEventHandler<T extends keyof SocketEvents>(
-    event: T,
-    callback: SocketEvents[T]
-  ): () => void {
-    if (!this.socket?.connected) {
-      throw new Error('Socket not initialized');
-    }
-    
-    this.socket.on(event, callback as any);
-    const listeners = this.eventListeners.get(event) || new Set();
-    listeners.add(callback);
-    this.eventListeners.set(event, listeners);
-
-    return () => {
-      if (this.socket) {
-        this.socket.off(event, callback as any);
-        const listeners = this.eventListeners.get(event);
-        if (listeners) {
-          listeners.delete(callback);
-        }
-      }
-    };
-  }
-
-  private notifyEventListeners(event: string, data: any) {
-    const listeners = this.eventListeners.get(event as keyof SocketEvents);
-    if (listeners) {
-      listeners.forEach(callback => callback(data));
-    }
+  onError(callback: ServerToClientEvents['error']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('error', callback);
+    return () => this.socket?.off('error', callback);
   }
 
   disconnect(): void {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-    }
-    
     if (this.socket) {
       this.socket.removeAllListeners();
       this.socket.disconnect();
       this.socket = null;
     }
-    
-    this.updateConnectionStatus('disconnected');
-    this.eventListeners.clear();
-  }
-
-  private async ensureConnection() {
-    if (!this.socket?.connected) {
-      await this.connect();
-    }
-    return this.socket!;
-  }
-
-  // Add the on method
-  on(event: string, callback: (...args: any[]) => void): void {
-    if (!this.socket) {
-      throw new Error('Socket not initialized');
-    }
-    this.socket.on(event, callback);
-  }
-
-  // Add the off method for cleanup
-  off(event: string, callback: (...args: any[]) => void): void {
-    if (!this.socket) {
-      throw new Error('Socket not initialized');
-    }
-    this.socket.off(event, callback);
   }
 }
 

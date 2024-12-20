@@ -1,11 +1,10 @@
-// src/lib/agora.ts
+// src/types/agora.ts
 
 import type { 
   IAgoraRTCClient, 
   ICameraVideoTrack, 
   IMicrophoneAudioTrack,
-  IAgoraRTCRemoteUser,
-  ConnectionState
+  IAgoraRTCRemoteUser
 } from 'agora-rtc-sdk-ng';
 
 // Core Agora Types
@@ -13,8 +12,7 @@ export type {
   IAgoraRTCClient,
   ICameraVideoTrack,
   IMicrophoneAudioTrack,
-  IAgoraRTCRemoteUser,
-  ConnectionState
+  IAgoraRTCRemoteUser
 };
 
 // Stream Configuration
@@ -35,11 +33,6 @@ export interface DeviceConfig {
   cameraId: string | null;
   microphoneId: string | null;
 }
-
-// Event Callbacks
-export type ConnectionCallback = (state: ConnectionState) => void;
-export type UserPublishedCallback = (user: IAgoraRTCRemoteUser, mediaType: 'audio' | 'video') => void;
-export type UserUnpublishedCallback = (user: IAgoraRTCRemoteUser) => void;
 
 // Track Management
 export interface LocalTracks {

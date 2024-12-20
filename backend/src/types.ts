@@ -1,4 +1,4 @@
-// src/types/stream.ts
+// backend/src/types.ts
 
 export interface Stream {
   id: string;
@@ -12,12 +12,4 @@ export interface Stream {
   coinAddress: string;
   description?: string;
   previewUrl?: string;
-  previewLastUpdated?: number;
-  previewError?: boolean;
-}
-
-// Error states for preview
-export enum PreviewError {
-  UNAVAILABLE = 'UNAVAILABLE',
-  FAILED = 'FAILED'
 }

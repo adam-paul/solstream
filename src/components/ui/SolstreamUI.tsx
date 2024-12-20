@@ -7,9 +7,9 @@ import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
-import { useInitializedStreamStore } from '@/lib/StreamStore';
+import { useStreamStore } from '@/lib/StreamStore';
 
-// Mock activity data
+// Maintain mock activity for UI demonstration
 const mockActivity = [
   "🎥 NewStream launched for $SOL",
   "👀 Trading101 just hit 1000 viewers",
@@ -22,13 +22,9 @@ const SolstreamUI: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
 
-  // Use initialized store hook
-  const {
-    getActiveStreams,
-    isStreamActive,
-    isInitialized
-  } = useInitializedStreamStore();
-
+  const { getAllStreams } = useStreamStore();
+  const streams = getAllStreams();
+  
   // Navigation handlers
   const handleStreamCreated = (streamId: string) => {
     setShowStreamModal(false);
@@ -36,15 +32,8 @@ const SolstreamUI: React.FC = () => {
   };
 
   const handleStreamSelect = (streamId: string) => {
-    if (!isStreamActive(streamId)) {
-      console.error('Stream is not active');
-      return;
-    }
     router.push(`/stream/${streamId}`);
   };
-
-  // Get all active streams
-  const streams = getActiveStreams();
 
   // Sort streams based on selected criteria
   const sortedStreams = [...streams].sort((a, b) => {
@@ -71,15 +60,6 @@ const SolstreamUI: React.FC = () => {
         current.viewers > prev.viewers ? current : prev
       )
     : null;
-
-  // Show loading state if store isn't initialized
-  if (!isInitialized) {
-    return (
-      <div className="min-h-screen bg-gray-900 text-white p-4 flex items-center justify-center">
-        <p className="text-xl">Loading streams...</p>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">

@@ -1,46 +1,36 @@
 // src/lib/agoraServiceInterface.ts
 import type {
   IAgoraRTCClient,
-  ICameraVideoTrack,
-  IMicrophoneAudioTrack,
   IAgoraRTCRemoteUser,
   StreamConfig,
   MediaDevices,
   DeviceConfig,
-  ConnectionCallback,
-  UserPublishedCallback,
-  UserUnpublishedCallback,
   LocalTracks
 } from '@/types/agora';
 
 export interface IAgoraService {
-  // Client Management
+  // Core initialization and cleanup
   initializeClient(config: StreamConfig): Promise<IAgoraRTCClient>;
   cleanup(): Promise<void>;
   
-  // Track Management
+  // Media track management
   initializeHostTracks(deviceConfig?: DeviceConfig): Promise<LocalTracks>;
   publishTracks(): Promise<void>;
   playVideo(container: HTMLElement): void;
   
-  // Remote User Handling
+  // Remote user handling
   handleUserPublished(
     container: HTMLElement,
     user: IAgoraRTCRemoteUser, 
     mediaType: 'audio' | 'video'
   ): Promise<void>;
   
-  // Device Management
+  // Device management
   getDevices(): Promise<MediaDevices>;
-  switchCamera(deviceId: string): Promise<ICameraVideoTrack>;
-  switchMicrophone(deviceId: string): Promise<IMicrophoneAudioTrack>;
+  switchCamera(deviceId: string): Promise<void>;
+  switchMicrophone(deviceId: string): Promise<void>;
   
-  // Track Controls
+  // Track controls
   toggleVideo(enabled: boolean): Promise<void>;
   toggleAudio(enabled: boolean): Promise<void>;
-  
-  // Event Listeners
-  onConnectionStateChange(callback: ConnectionCallback): void;
-  onUserPublished(callback: UserPublishedCallback): void;
-  onUserUnpublished(callback: UserUnpublishedCallback): void;
 }

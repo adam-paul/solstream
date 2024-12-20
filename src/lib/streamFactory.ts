@@ -13,7 +13,5 @@ export const createStream = (
   marketCap: '0',
   description: '',
   thumbnail: "/api/placeholder/400/300",
-  previewUrl: undefined,
-  previewLastUpdated: undefined,
-  previewError: false
+  previewUrl: undefined
 });

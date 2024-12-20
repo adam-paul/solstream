@@ -1,14 +1,17 @@
 // src/app/stream/[id]/page.tsx
-
 import { Suspense } from 'react';
 import StreamPageClient from './StreamPageClient';
 
-interface PageProps {
-  params: Promise<{ id: string }>;
+type SegmentParams = {
+  id: string;
 }
 
-export default async function StreamPage({ params }: PageProps) {
-  const { id: streamId } = await params;
+export default async function StreamPage({ 
+  params 
+}: { 
+  params: Promise<SegmentParams>
+}) {
+  const { id } = await params;
   
   return (
     <Suspense fallback={
@@ -16,7 +19,7 @@ export default async function StreamPage({ params }: PageProps) {
         <p className="text-xl">Loading stream...</p>
       </div>
     }>
-      <StreamPageClient streamId={streamId} />
+      <StreamPageClient streamId={id} />
     </Suspense>
   );
 }

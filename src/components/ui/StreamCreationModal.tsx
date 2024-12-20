@@ -1,7 +1,6 @@
-// src/components/ui/StreamCreationModal.tsx
 'use client'
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Upload } from 'lucide-react';
 import { useInitializedStreamStore } from '@/lib/StreamStore';
 import { sessionManager } from '@/lib/sessionManager';
@@ -13,70 +12,66 @@ interface StreamCreationModalProps {
   onStreamCreated: (streamId: string) => void;
 }
 
+interface FormState {
+  title: string;
+  description: string;
+  ticker: string;
+  coinAddress: string;
+  twitterLink: string;
+  telegramLink: string;
+  website: string;
+}
+
+const INITIAL_FORM_STATE: FormState = {
+  title: '',
+  description: '',
+  ticker: '',
+  coinAddress: '',
+  twitterLink: '',
+  telegramLink: '',
+  website: ''
+};
+
 const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
   isOpen,
   onClose,
   onStreamCreated,
 }) => {
-  // Form state
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [ticker, setTicker] = useState('');
-  const [coinAddress, setCoinAddress] = useState('');
+  const [formState, setFormState] = useState<FormState>(INITIAL_FORM_STATE);
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [showMoreOptions, setShowMoreOptions] = useState(false);
-  const [twitterLink, setTwitterLink] = useState('');
-  const [telegramLink, setTelegramLink] = useState('');
-  const [website, setWebsite] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
   const { startStream } = useInitializedStreamStore();
 
   if (!isOpen) return null;
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormState(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
-      setIsCreating(true);
-      setError(null);
-      
-      // Create the stream data without ID (ID will be generated in startStream)
       const streamData = createStream({
-        title,
-        ticker,
-        coinAddress,
+        title: formState.title,
+        ticker: formState.ticker,
+        coinAddress: formState.coinAddress,
       }, sessionManager.getUserId());
 
-      // Wait for stream creation confirmation
       const streamId = await startStream(streamData);
-
+      
       // Reset form
-      setTitle('');
-      setDescription('');
-      setTicker('');
-      setCoinAddress('');
+      setFormState(INITIAL_FORM_STATE);
       setSelectedImage(null);
-      setTwitterLink('');
-      setTelegramLink('');
-      setWebsite('');
       setShowMoreOptions(false);
 
-      // Notify parent of successful creation
       onStreamCreated(streamId);
     } catch (error) {
+      // Error handling now done through StreamStore
       console.error('Failed to create stream:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create stream');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
     }
   };
 
@@ -86,13 +81,18 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
     }
   };
 
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
   return (
     <div 
       className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
       onClick={handleBackdropClick}
     >
       <div className="bg-gray-900 w-[90%] h-[90%] rounded-lg p-8 overflow-y-auto">
-        {/* Back Button */}
         <button 
           onClick={onClose}
           className="text-blue-400 hover:text-blue-300 text-xl mb-8 w-full text-center"
@@ -106,8 +106,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
             <label className="text-blue-400 block">stream title</label>
             <input
               type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              name="title"
+              value={formState.title}
+              onChange={handleInputChange}
               className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -120,8 +121,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
               <span className="absolute left-3 top-3 text-gray-400">$</span>
               <input
                 type="text"
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value)}
+                name="ticker"
+                value={formState.ticker}
+                onChange={handleInputChange}
                 className="w-full bg-gray-800 rounded p-3 pl-8 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
@@ -133,8 +135,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
             <label className="text-blue-400 block">coin address</label>
             <input
               type="text"
-              value={coinAddress}
-              onChange={(e) => setCoinAddress(e.target.value)}
+              name="coinAddress"
+              value={formState.coinAddress}
+              onChange={handleInputChange}
               className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
@@ -144,8 +147,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
           <div className="space-y-2">
             <label className="text-blue-400 block">description</label>
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              name="description"
+              value={formState.description}
+              onChange={handleInputChange}
               className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-32"
             />
           </div>
@@ -194,8 +198,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
                 <label className="text-blue-400 block">twitter link</label>
                 <input
                   type="text"
-                  value={twitterLink}
-                  onChange={(e) => setTwitterLink(e.target.value)}
+                  name="twitterLink"
+                  value={formState.twitterLink}
+                  onChange={handleInputChange}
                   placeholder="(optional)"
                   className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -206,8 +211,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
                 <label className="text-blue-400 block">telegram link</label>
                 <input
                   type="text"
-                  value={telegramLink}
-                  onChange={(e) => setTelegramLink(e.target.value)}
+                  name="telegramLink"
+                  value={formState.telegramLink}
+                  onChange={handleInputChange}
                   placeholder="(optional)"
                   className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -218,8 +224,9 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
                 <label className="text-blue-400 block">website</label>
                 <input
                   type="text"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
+                  name="website"
+                  value={formState.website}
+                  onChange={handleInputChange}
                   placeholder="(optional)"
                   className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -227,24 +234,12 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
             </div>
           )}
 
-          {/* Error Message */}
-          {error && (
-            <div className="text-red-500 bg-red-500/10 p-4 rounded-lg text-center">
-              {error}
-            </div>
-          )}
-
           {/* Launch Button */}
           <button
             type="submit"
-            disabled={isCreating}
-            className={`w-full ${
-              isCreating 
-                ? 'bg-blue-400 cursor-not-allowed' 
-                : 'bg-blue-600 hover:bg-blue-700'
-            } text-white font-bold py-3 px-6 rounded-lg text-lg mt-8`}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg mt-8"
           >
-            {isCreating ? 'launching stream...' : 'launch stream'}
+            launch stream
           </button>
 
           {/* Fee Notice */}

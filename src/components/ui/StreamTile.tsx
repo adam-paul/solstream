@@ -9,7 +9,7 @@ interface StreamTileProps {
 }
 
 const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
-  const hasPreview = Boolean(stream.previewUrl && !stream.previewError);
+  const hasPreview = Boolean(stream.previewUrl);
   
   return (
     <div 
@@ -18,7 +18,6 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
     >
       <div className="relative w-full h-48">
         {hasPreview ? (
-          // Live preview
           <Image
             src={stream.previewUrl!}
             alt={`${stream.title} preview`}
@@ -26,16 +25,12 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
             className="object-cover"
           />
         ) : (
-          // Error or no preview state
           <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center text-gray-500">
             <EyeOff size={24} className="mb-2" />
-            <span className="text-sm">
-              {stream.previewError ? 'Preview Unavailable' : 'Stream Preview Loading'}
-            </span>
+            <span className="text-sm">Stream Preview Loading</span>
           </div>
         )}
         
-        {/* Live indicator */}
         {hasPreview && (
           <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
             LIVE
