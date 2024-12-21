@@ -47,9 +47,22 @@ export class AgoraService implements IAgoraService {
   }
 
   private async fetchToken(channel: string, isHost: boolean = false): Promise<string> {
+    console.log('Fetching token:', { channel, isHost });
     const response = await fetch(`/api/agora-token?channel=${channel}&isHost=${isHost}`);
-    if (!response.ok) throw new Error('Failed to fetch token');
+    
+    if (!response.ok) {
+      const error = await response.text();
+      console.error('Token fetch failed:', error);
+      throw new Error('Failed to fetch token');
+    }
+    
     const data = await response.json();
+    console.log('Token response:', { 
+      hasToken: !!data.token,
+      appId: data.appId?.slice(0,5) + '...',
+      channel: data.channelName 
+    });
+    
     return data.token;
   }
 
