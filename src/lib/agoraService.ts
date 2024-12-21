@@ -29,7 +29,8 @@ export class AgoraService implements IAgoraService {
   
     this.client = AgoraRTC.createClient({
       mode: "live",
-      codec: "vp8"
+      codec: "vp8",
+      role: config.role === 'host' ? 'host' : 'audience' // Critical for live streaming mode
     });
   
     const tokenData = config.token ? 
@@ -83,8 +84,6 @@ export class AgoraService implements IAgoraService {
   }
 
   async initializeHostTracks(deviceConfig?: DeviceConfig): Promise<LocalTracks> {
-    if (!this.client) throw new Error('Client not initialized');
-
     const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
       microphoneId: deviceConfig?.microphoneId || undefined,
       AEC: true,
@@ -153,7 +152,7 @@ export class AgoraService implements IAgoraService {
   }
 
   async switchCamera(deviceId: string): Promise<void> {
-    if (!this.client || !this.videoTrack) {
+    if (!this.videoTrack) {
       throw new Error('Video track not initialized');
     }
 
@@ -166,16 +165,22 @@ export class AgoraService implements IAgoraService {
       }
     });
 
-    await this.client.unpublish(this.videoTrack);
-    await this.client.publish(newTrack);
-
+    if (this.client) {
+      await this.client.unpublish(this.videoTrack);
+    }
+    
     this.videoTrack.stop();
     await this.videoTrack.close();
+    
     this.videoTrack = newTrack;
+    
+    if (this.client) {
+      await this.client.publish(newTrack);
+    }
   }
 
   async switchMicrophone(deviceId: string): Promise<void> {
-    if (!this.client || !this.audioTrack) {
+    if (!this.audioTrack) {
       throw new Error('Audio track not initialized');
     }
 
@@ -186,12 +191,18 @@ export class AgoraService implements IAgoraService {
       AGC: true
     });
 
-    await this.client.unpublish(this.audioTrack);
-    await this.client.publish(newTrack);
-
+    if (this.client) {
+      await this.client.unpublish(this.audioTrack);
+    }
+    
     this.audioTrack.stop();
     await this.audioTrack.close();
+    
     this.audioTrack = newTrack;
+    
+    if (this.client) {
+      await this.client.publish(newTrack);
+    }
   }
 
   async toggleVideo(enabled: boolean): Promise<void> {

@@ -105,6 +105,35 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     }
   }, [handleMediaError]);
 
+// Initialize preview before going live
+const initializePreview = useCallback(async () => {
+  if (!videoRef.current || !stream) return;
+  
+  try {
+    const { audioTrack, videoTrack } = await agoraService.initializeHostTracks({
+      cameraId: controls.selectedCamera || null,
+      microphoneId: controls.selectedMicrophone || null
+    });
+
+    // Play both tracks if available
+    if (videoTrack) {
+      agoraService.playVideo(videoRef.current);
+    }
+    if (audioTrack) {
+      audioTrack.play(); // Start audio playback for preview
+    }
+
+    // Update local state to reflect track status
+    setControls(prev => ({
+      ...prev,
+      videoEnabled: !!videoTrack,
+      audioEnabled: !!audioTrack
+    }));
+  } catch (err) {
+    handleMediaError('Failed to initialize preview', err);
+  }
+}, [stream, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
+
   // Initialize stream
   const startLiveStream = useCallback(async () => {
     if (!videoRef.current || !stream) return;
@@ -158,7 +187,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     window.location.href = '/';
   }, [streamId, endStream]);
 
-  // Initialize devices
+  // Initialize devices and preview
   useEffect(() => {
     mountedRef.current = true;
 
@@ -173,6 +202,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
           selectedCamera: availableDevices.cameras[0]?.deviceId || '',
           selectedMicrophone: availableDevices.microphones[0]?.deviceId || ''
         }));
+
+        // Initialize preview right away
+        await initializePreview();
       } catch (err) {
         if (mountedRef.current) {
           handleMediaError('Failed to initialize devices', err);
@@ -189,7 +221,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       }
       agoraService.cleanup().catch(console.error);
     };
-  }, [handleMediaError]);
+  }, [handleMediaError, initializePreview]);
 
   // Device change listener
   useEffect(() => {
