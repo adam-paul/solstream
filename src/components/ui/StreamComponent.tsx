@@ -110,8 +110,13 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     if (!videoRef.current || !stream) return;
   
     try {
+      console.log('Starting live stream:', { 
+        streamId: stream.id,
+        hasVideoRef: !!videoRef.current
+      });
+      
       await agoraService.initializeClient({
-        role: 'host',
+        role: 'host', // Explicitly set host role
         streamId
       });
     
