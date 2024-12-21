@@ -9,6 +9,13 @@ export async function GET(request: NextRequest) {
   const channelName = searchParams.get('channel');
   const isHost = searchParams.get('isHost') === 'true';
 
+  console.log('Token Generation:', { 
+    channelName, 
+    isHost, 
+    appId: process.env.NEXT_PUBLIC_AGORA_APP_ID?.slice(0,5) + '...', 
+    hasCertificate: !!process.env.AGORA_APP_CERTIFICATE 
+  });
+
   if (!channelName) {
     return NextResponse.json({ error: 'Channel name is required' }, { status: 400 });
   }
@@ -27,9 +34,11 @@ export async function GET(request: NextRequest) {
     const expirationTimeInSeconds = 24 * 3600;
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+    // Generate a random uid between 1 and 100000
     const uid = Math.floor(Math.random() * 100000);
 
     const role = isHost ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+    console.log('Using role:', role);
 
     const token = RtcTokenBuilder.buildTokenWithUid(
       appId,
@@ -40,6 +49,8 @@ export async function GET(request: NextRequest) {
       privilegeExpiredTs
     );
 
+    console.log('Token generated successfully');
+    
     return NextResponse.json({ 
       token, 
       uid,

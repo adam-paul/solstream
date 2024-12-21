@@ -21,6 +21,12 @@ export class AgoraService implements IAgoraService {
   async initializeClient(config: StreamConfig): Promise<IAgoraRTCClient> {
     await this.cleanup();
   
+    console.log('Initializing Agora client:', { 
+      role: config.role,
+      streamId: config.streamId,
+      hasToken: !!config.token
+    });
+  
     this.client = AgoraRTC.createClient({
       mode: "live",
       codec: "vp8",
@@ -28,6 +34,13 @@ export class AgoraService implements IAgoraService {
     });
   
     const token = config.token || await this.fetchToken(config.streamId, config.role === 'host');
+    
+    console.log('Joining with token:', {
+      appId: this.appId.slice(0,5) + '...',
+      hasToken: !!token,
+      role: config.role
+    });
+  
     await this.client.join(this.appId, config.streamId, token, config.uid);
     
     return this.client;
