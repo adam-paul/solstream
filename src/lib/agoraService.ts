@@ -29,8 +29,7 @@ export class AgoraService implements IAgoraService {
   
     this.client = AgoraRTC.createClient({
       mode: "live",
-      codec: "vp8",
-      role: config.role
+      codec: "vp8"
     });
   
     const token = config.token || await this.fetchToken(config.streamId, config.role === 'host');
