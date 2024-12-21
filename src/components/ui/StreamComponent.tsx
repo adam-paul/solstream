@@ -105,34 +105,35 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     }
   }, [handleMediaError]);
 
-// Initialize preview before going live
-const initializePreview = useCallback(async () => {
-  if (!videoRef.current || !stream) return;
-  
-  try {
-    const { audioTrack, videoTrack } = await agoraService.initializeHostTracks({
-      cameraId: controls.selectedCamera || null,
-      microphoneId: controls.selectedMicrophone || null
-    });
+  // Initialize preview before going live
+  const initializePreview = useCallback(async () => {
+    if (!videoRef.current || !stream) return;
+    
+    try {
+      // Clean up any existing tracks first
+      await agoraService.cleanup();
+      
+      // Initialize both tracks to get permissions
+      const { audioTrack, videoTrack } = await agoraService.initializeHostTracks({
+        cameraId: controls.selectedCamera || null,
+        microphoneId: controls.selectedMicrophone || null
+      });
 
-    // Play both tracks if available
-    if (videoTrack) {
-      agoraService.playVideo(videoRef.current);
-    }
-    if (audioTrack) {
-      audioTrack.play(); // Start audio playback for preview
-    }
+      // Only show video preview, don't play audio locally
+      if (videoTrack) {
+        agoraService.playVideo(videoRef.current);
+      }
 
-    // Update local state to reflect track status
-    setControls(prev => ({
-      ...prev,
-      videoEnabled: !!videoTrack,
-      audioEnabled: !!audioTrack
-    }));
-  } catch (err) {
-    handleMediaError('Failed to initialize preview', err);
-  }
-}, [stream, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
+      // Update controls to reflect track initialization status
+      setControls(prev => ({
+        ...prev,
+        videoEnabled: !!videoTrack,
+        audioEnabled: !!audioTrack
+      }));
+    } catch (err) {
+      handleMediaError('Failed to initialize preview', err);
+    }
+  }, [stream, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
 
   // Initialize stream
   const startLiveStream = useCallback(async () => {
