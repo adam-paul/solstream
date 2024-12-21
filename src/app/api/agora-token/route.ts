@@ -31,14 +31,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const expirationTimeInSeconds = 24 * 3600;
+    // In live streaming mode, hosts are publishers and viewers are subscribers
+    const role = isHost ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+    
+    // Ensure the expiration time is reasonable
     const currentTimestamp = Math.floor(Date.now() / 1000);
-    const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
+    const privilegeExpiredTs = currentTimestamp + (24 * 3600); // 24 hours
+    
     // Generate a random uid between 1 and 100000
     const uid = Math.floor(Math.random() * 100000);
-
-    const role = isHost ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
-    console.log('Using role:', role);
 
     const token = RtcTokenBuilder.buildTokenWithUid(
       appId,
@@ -49,13 +50,24 @@ export async function GET(request: NextRequest) {
       privilegeExpiredTs
     );
 
-    console.log('Token generated successfully');
+    console.log('Token details:', {
+      tokenPrefix: token.substring(0, 32),
+      channelName,
+      uid,
+      role,
+      privilegeExpiredTs,
+      currentTimestamp
+    });
     
+    // Ensure token and uid are coupled in response
     return NextResponse.json({ 
       token, 
-      uid,
+      uid,  // This UID MUST be used with this token
       appId,
-      channelName 
+      channelName,
+      role: isHost ? 'host' : 'audience',
+      timestamp: currentTimestamp,
+      expires: privilegeExpiredTs
     });
   } catch (error) {
     console.error('Token generation error:', error);

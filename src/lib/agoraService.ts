@@ -32,20 +32,31 @@ export class AgoraService implements IAgoraService {
       codec: "vp8"
     });
   
-    const token = config.token || await this.fetchToken(config.streamId, config.role === 'host');
+    const tokenData = config.token ? 
+      { token: config.token, uid: config.uid } : 
+      await this.fetchToken(config.streamId, config.role === 'host');
     
     console.log('Joining with token:', {
       appId: this.appId.slice(0,5) + '...',
-      hasToken: !!token,
-      role: config.role
+      hasToken: !!tokenData.token,
+      role: config.role,
+      tokenPrefix: tokenData.token.substring(0, 32),
+      uid: tokenData.uid,
+      connectionState: this.client?.connectionState,
+      timestamp: Date.now()
     });
   
-    await this.client.join(this.appId, config.streamId, token, config.uid);
+    await this.client.join(
+      this.appId,
+      config.streamId,
+      tokenData.token,
+      tokenData.uid // Always use the UID that was generated with the token
+    );
     
     return this.client;
   }
 
-  private async fetchToken(channel: string, isHost: boolean = false): Promise<string> {
+  private async fetchToken(channel: string, isHost: boolean = false): Promise<{token: string, uid: number}> {
     console.log('Fetching token:', { channel, isHost });
     const response = await fetch(`/api/agora-token?channel=${channel}&isHost=${isHost}`);
     
@@ -58,11 +69,17 @@ export class AgoraService implements IAgoraService {
     const data = await response.json();
     console.log('Token response:', { 
       hasToken: !!data.token,
+      uid: data.uid,
       appId: data.appId?.slice(0,5) + '...',
-      channel: data.channelName 
+      channel: data.channelName,
+      role: data.role,
+      expires: new Date(data.expires * 1000).toISOString()
     });
     
-    return data.token;
+    return {
+      token: data.token,
+      uid: data.uid
+    };
   }
 
   async initializeHostTracks(deviceConfig?: DeviceConfig): Promise<LocalTracks> {
