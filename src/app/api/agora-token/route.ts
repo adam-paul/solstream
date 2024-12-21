@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   const searchParams = new URL(request.url).searchParams;
   const channelName = searchParams.get('channel');
-  
+  const isHost = searchParams.get('isHost') === 'true';
+
   if (!channelName) {
     return NextResponse.json({ error: 'Channel name is required' }, { status: 400 });
   }
@@ -23,28 +24,26 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Set token expiry for 24 hours
     const expirationTimeInSeconds = 24 * 3600;
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
-    
-    // Generate a random uid between 1 and 100000
     const uid = Math.floor(Math.random() * 100000);
 
-    // Build the token with SUBSCRIBER role for viewers
+    const role = isHost ? RtcRole.PUBLISHER : RtcRole.SUBSCRIBER;
+
     const token = RtcTokenBuilder.buildTokenWithUid(
       appId,
       appCertificate,
       channelName,
       uid,
-      RtcRole.SUBSCRIBER,
+      role,
       privilegeExpiredTs
     );
 
     return NextResponse.json({ 
       token, 
       uid,
-      appId, // Send appId to client for initialization
+      appId,
       channelName 
     });
   } catch (error) {

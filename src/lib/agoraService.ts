@@ -20,21 +20,21 @@ export class AgoraService implements IAgoraService {
 
   async initializeClient(config: StreamConfig): Promise<IAgoraRTCClient> {
     await this.cleanup();
-
+  
     this.client = AgoraRTC.createClient({
       mode: "live",
       codec: "vp8",
       role: config.role
     });
-
-    const token = config.token || await this.fetchToken(config.streamId);
+  
+    const token = config.token || await this.fetchToken(config.streamId, config.role === 'host');
     await this.client.join(this.appId, config.streamId, token, config.uid);
     
     return this.client;
   }
 
-  private async fetchToken(channel: string): Promise<string> {
-    const response = await fetch(`/api/agora-token?channel=${channel}`);
+  private async fetchToken(channel: string, isHost: boolean = false): Promise<string> {
+    const response = await fetch(`/api/agora-token?channel=${channel}&isHost=${isHost}`);
     if (!response.ok) throw new Error('Failed to fetch token');
     const data = await response.json();
     return data.token;
