@@ -81,9 +81,16 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
     }
   };
 
+  const handleModalClose = () => {
+    setFormState(INITIAL_FORM_STATE);
+    setSelectedImage(null);
+    setShowMoreOptions(false);
+    onClose();
+  };
+
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
-      onClose();
+      handleModalClose();
     }
   };
 
