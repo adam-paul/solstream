@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Upload } from 'lucide-react';
 import { useInitializedStreamStore } from '@/lib/StreamStore';
 import { sessionManager } from '@/lib/sessionManager';
@@ -44,6 +44,26 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
   
   const { startStream } = useInitializedStreamStore();
 
+  const handleModalClose = useCallback(() => {
+    setFormState(INITIAL_FORM_STATE);
+    setSelectedImage(null);
+    setShowMoreOptions(false);
+    onClose();
+  }, [onClose]);
+
+  React.useEffect(() => {
+    const handleEscapeKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        handleModalClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [isOpen, handleModalClose]);
+
   if (!isOpen) return null;
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -70,7 +90,6 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
 
       onStreamCreated(streamId);
     } catch (error) {
-      // Error handling now done through StreamStore
       console.error('Failed to create stream:', error);
     }
   };
@@ -79,13 +98,6 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
     if (e.target.files && e.target.files[0]) {
       setSelectedImage(e.target.files[0]);
     }
-  };
-
-  const handleModalClose = () => {
-    setFormState(INITIAL_FORM_STATE);
-    setSelectedImage(null);
-    setShowMoreOptions(false);
-    onClose();
   };
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -101,7 +113,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
     >
       <div className="bg-gray-900 w-[90%] h-[90%] rounded-lg p-8 overflow-y-auto">
         <button 
-          onClick={onClose}
+          onClick={handleModalClose}
           className="text-blue-400 hover:text-blue-300 text-xl mb-8 w-full text-center"
         >
           [go back]
