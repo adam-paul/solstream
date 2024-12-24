@@ -9,6 +9,7 @@ export class AgoraService implements IAgoraService {
   private client: IAgoraRTCClient | null = null;
   private videoTrack: ICameraVideoTrack | null = null;
   private audioTrack: IMicrophoneAudioTrack | null = null;
+  private videoContainer: HTMLElement | null = null;
   private readonly appId: string;
   
   constructor() {
@@ -30,7 +31,7 @@ export class AgoraService implements IAgoraService {
     this.client = AgoraRTC.createClient({
       mode: "live",
       codec: "vp8",
-      role: config.role === 'host' ? 'host' : 'audience' // Critical for live streaming mode
+      role: config.role === 'host' ? 'host' : 'audience'
     });
   
     const tokenData = config.token ? 
@@ -51,7 +52,7 @@ export class AgoraService implements IAgoraService {
       this.appId,
       config.streamId,
       tokenData.token,
-      tokenData.uid // Always use the UID that was generated with the token
+      tokenData.uid
     );
     
     return this.client;
@@ -121,8 +122,24 @@ export class AgoraService implements IAgoraService {
   }
 
   playVideo(container: HTMLElement): void {
+    // First clean up any existing video elements
+    this.cleanupVideoElements();
+    
+    // Store reference to container
+    this.videoContainer = container;
+    
+    // Play video if track exists
     if (this.videoTrack) {
       this.videoTrack.play(container);
+    }
+  }
+
+  private cleanupVideoElements(): void {
+    if (this.videoContainer) {
+      while (this.videoContainer.firstChild) {
+        this.videoContainer.removeChild(this.videoContainer.firstChild);
+      }
+      this.videoContainer = null;
     }
   }
 
@@ -177,6 +194,11 @@ export class AgoraService implements IAgoraService {
     if (this.client) {
       await this.client.publish(newTrack);
     }
+
+    // If we have a container, play the new track
+    if (this.videoContainer) {
+      this.playVideo(this.videoContainer);
+    }
   }
 
   async switchMicrophone(deviceId: string): Promise<void> {
@@ -218,23 +240,39 @@ export class AgoraService implements IAgoraService {
   }
 
   async cleanup(): Promise<void> {
-    if (this.videoTrack) {
-      this.videoTrack.stop();
-      await this.videoTrack.close();
-      this.videoTrack = null;
-    }
+    // First clean up DOM elements
+    this.cleanupVideoElements();
 
-    if (this.audioTrack) {
-      this.audioTrack.stop();
-      await this.audioTrack.close();
-      this.audioTrack = null;
-    }
-
-    if (this.client) {
-      this.client.removeAllListeners();
-      if (this.client.connectionState === 'CONNECTED') {
-        await this.client.leave();
+    // Then clean up tracks and client
+    try {
+      // Cleanup video track
+      if (this.videoTrack) {
+        this.videoTrack.stop();
+        await this.videoTrack.close();
+        this.videoTrack = null;
       }
+
+      // Cleanup audio track
+      if (this.audioTrack) {
+        this.audioTrack.stop();
+        await this.audioTrack.close();
+        this.audioTrack = null;
+      }
+
+      // Cleanup client
+      if (this.client) {
+        this.client.removeAllListeners();
+        if (this.client.connectionState === 'CONNECTED' || 
+            this.client.connectionState === 'CONNECTING') {
+          await this.client.leave();
+        }
+        this.client = null;
+      }
+    } catch (error) {
+      console.error('Error during cleanup:', error);
+      // Still clear references even if cleanup fails
+      this.videoTrack = null;
+      this.audioTrack = null;
       this.client = null;
     }
   }

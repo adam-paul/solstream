@@ -119,8 +119,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
         microphoneId: controls.selectedMicrophone || null
       });
 
-      // Only show video preview, don't play audio locally
-      if (videoTrack) {
+      if (videoTrack && videoRef.current) {
         agoraService.playVideo(videoRef.current);
       }
 
@@ -146,7 +145,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       });
       
       await agoraService.initializeClient({
-        role: 'host', // Explicitly set host role
+        role: 'host',
         streamId
       });
     
@@ -159,7 +158,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
         throw new Error('Failed to initialize media tracks');
       }
   
-      if (videoTrack) {
+      if (videoTrack && videoRef.current) {
         agoraService.playVideo(videoRef.current);
       }
   
@@ -183,7 +182,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     if (previewIntervalRef.current) {
       clearInterval(previewIntervalRef.current);
     }
+    
     await agoraService.cleanup();
+    setIsLive(false);
     endStream(streamId);
     window.location.href = '/';
   }, [streamId, endStream]);
@@ -194,6 +195,8 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
     const initialize = async () => {
       try {
+        await agoraService.cleanup();
+        
         const availableDevices = await agoraService.getDevices();
         if (!mountedRef.current) return;
         
@@ -204,7 +207,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
           selectedMicrophone: availableDevices.microphones[0]?.deviceId || ''
         }));
 
-        // Initialize preview right away
         await initializePreview();
       } catch (err) {
         if (mountedRef.current) {
