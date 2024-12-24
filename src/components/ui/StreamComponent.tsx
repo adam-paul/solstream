@@ -4,7 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Mic, Video, VideoOff, MicOff, Settings } from 'lucide-react';
 import { agoraService } from '@/lib/agoraService';
 import { useStreamStore } from '@/lib/StreamStore';
-import { DEFAULT_PREVIEW_CONFIG } from '@/config/preview';
+import { socketService } from '@/lib/socketService';
 
 interface StreamComponentProps {
   streamId: string;
@@ -38,7 +38,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   }>({ cameras: [], microphones: [] });
   const [showSettings, setShowSettings] = useState(false);
 
-  const { getStream, endStream, updatePreview } = useStreamStore();
+  const { getStream, endStream } = useStreamStore();
   const stream = getStream(streamId);
 
   // Error handling
@@ -48,29 +48,30 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     setTimeout(() => setError(null), 5000);
   }, []);
 
-  // Preview capture
-  const capturePreview = useCallback(() => {
-    if (!videoRef.current || !mountedRef.current || !isLive) return;
-
+  // Simplified preview capture
+  const capturePreview = useCallback(async () => {
+    if (!videoRef.current || !isLive) return;
+    
     const video = videoRef.current.querySelector('video');
     if (!video || video.readyState < 2) return;
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const scaleFactor = 0.5;
-    canvas.width = video.videoWidth * scaleFactor;
-    canvas.height = video.videoHeight * scaleFactor;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     
-    const previewUrl = canvas.toDataURL('image/jpeg', DEFAULT_PREVIEW_CONFIG.compressionQuality);
-    if (previewUrl.length <= 200000) {
-      updatePreview(streamId, previewUrl);
-    }
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640;  // Fixed size
+      canvas.height = 360; // 16:9 ratio
+      
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    canvas.remove();
-  }, [streamId, updatePreview, isLive]);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const preview = canvas.toDataURL('image/jpeg', 0.7);
+      canvas.remove();
+
+      socketService.updatePreview(streamId, preview);
+    } catch (error) {
+      console.error('Failed to capture preview:', error);
+    }
+  }, [streamId, isLive]);
 
   // Media control handlers
   const toggleVideo = useCallback(async () => {
@@ -105,45 +106,11 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     }
   }, [handleMediaError]);
 
-  // Initialize preview before going live
-  const initializePreview = useCallback(async () => {
-    if (!videoRef.current || !stream) return;
-    
-    try {
-      // Clean up any existing tracks first
-      await agoraService.cleanup();
-      
-      // Initialize both tracks to get permissions
-      const { audioTrack, videoTrack } = await agoraService.initializeHostTracks({
-        cameraId: controls.selectedCamera || null,
-        microphoneId: controls.selectedMicrophone || null
-      });
-
-      if (videoTrack && videoRef.current) {
-        agoraService.playVideo(videoRef.current);
-      }
-
-      // Update controls to reflect track initialization status
-      setControls(prev => ({
-        ...prev,
-        videoEnabled: !!videoTrack,
-        audioEnabled: !!audioTrack
-      }));
-    } catch (err) {
-      handleMediaError('Failed to initialize preview', err);
-    }
-  }, [stream, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
-
   // Initialize stream
   const startLiveStream = useCallback(async () => {
     if (!videoRef.current || !stream) return;
   
     try {
-      console.log('Starting live stream:', { 
-        streamId: stream.id,
-        hasVideoRef: !!videoRef.current
-      });
-      
       await agoraService.initializeClient({
         role: 'host',
         streamId
@@ -165,12 +132,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       await agoraService.publishTracks();
       setIsLive(true);
   
-      // Set up preview capture
-      setTimeout(capturePreview, DEFAULT_PREVIEW_CONFIG.initialDelay);
-      previewIntervalRef.current = setInterval(
-        capturePreview,
-        DEFAULT_PREVIEW_CONFIG.updateInterval
-      );
+      // Initial preview capture and interval setup
+      capturePreview();
+      previewIntervalRef.current = setInterval(capturePreview, 300000); // 5 minutes
     } catch (err) {
       handleMediaError('Failed to start stream', err);
       await agoraService.cleanup();
@@ -189,7 +153,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     window.location.href = '/';
   }, [streamId, endStream]);
 
-  // Initialize devices and preview
+  // Initialize devices
   useEffect(() => {
     mountedRef.current = true;
 
@@ -206,8 +170,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
           selectedCamera: availableDevices.cameras[0]?.deviceId || '',
           selectedMicrophone: availableDevices.microphones[0]?.deviceId || ''
         }));
-
-        await initializePreview();
       } catch (err) {
         if (mountedRef.current) {
           handleMediaError('Failed to initialize devices', err);
@@ -224,7 +186,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       }
       agoraService.cleanup().catch(console.error);
     };
-  }, [handleMediaError, initializePreview]);
+  }, [handleMediaError]);
 
   // Device change listener
   useEffect(() => {

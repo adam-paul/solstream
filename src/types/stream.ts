@@ -1,4 +1,5 @@
 // src/types/stream.ts
+
 export interface Stream {
   id: string;
   title: string;
@@ -10,11 +11,4 @@ export interface Stream {
   ticker: string;
   coinAddress: string;
   description?: string;
-  previewUrl?: string;
-}
-
-export interface PreviewConfig {
-  initialDelay: number;
-  updateInterval: number;
-  compressionQuality: number;
 }

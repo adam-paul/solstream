@@ -32,7 +32,6 @@ interface StreamState {
   // Stream actions
   startStream: (streamData: Omit<Stream, 'id'>) => Promise<string>;
   endStream: (id: string) => void;
-  updatePreview: (id: string, previewUrl: string) => void;
 }
 
 const useStreamStore = create<StreamState>()((set, get) => ({
@@ -41,7 +40,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
   userRoles: new Map(),
   isInitialized: false,
 
-  // Core state accessors
   getStream: (id) => get().streams.get(id),
   
   getAllStreams: () => Array.from(get().streams.values()),
@@ -59,7 +57,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
     return stream ? stream.creator === sessionManager.getUserId() : false;
   },
 
-  // Role management
   getUserRole: (streamId) => get().userRoles.get(streamId) || null,
 
   setUserRole: (streamId, role) => set(state => {
@@ -79,7 +76,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
     );
   },
 
-  // Store initialization
   initializeStore: async () => {
     try {
       const socket = await socketService.connect();
@@ -121,7 +117,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
         });
       });
 
-      // Handle viewer count updates through join/leave events
       socketService.onViewerJoined(({ streamId, count }) => {
         set(state => {
           const newStreams = new Map(state.streams);
@@ -140,21 +135,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
           const stream = newStreams.get(streamId);
           if (stream) {
             newStreams.set(streamId, { ...stream, viewers: count });
-            return { streams: newStreams };
-          }
-          return state;
-        });
-      });
-
-      socketService.onPreviewUpdated(({ streamId, previewUrl }) => {
-        set(state => {
-          const newStreams = new Map(state.streams);
-          const stream = newStreams.get(streamId);
-          if (stream) {
-            newStreams.set(streamId, { 
-              ...stream, 
-              previewUrl
-            });
             return { streams: newStreams };
           }
           return state;
@@ -182,7 +162,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
     }
   },
 
-  // Stream actions
   startStream: async (streamData) => {
     const streamId = `stream-${crypto.randomUUID()}`;
     get().setUserRole(streamId, 'host');
@@ -191,8 +170,7 @@ const useStreamStore = create<StreamState>()((set, get) => ({
       const newStream: Stream = {
         ...streamData,
         id: streamId,
-        viewers: 0,
-        previewUrl: undefined
+        viewers: 0
       };
 
       socketService.startStream(newStream);
@@ -205,10 +183,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
 
   endStream: (id) => {
     socketService.endStream(id);
-  },
-
-  updatePreview: (id, previewUrl) => {
-    socketService.updatePreview(id, previewUrl);
   }
 }));
 

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Eye, EyeOff } from 'lucide-react';
+import { socketService } from '@/lib/socketService';
 import type { Stream } from '@/types/stream';
 
 interface StreamTileProps {
@@ -9,7 +10,17 @@ interface StreamTileProps {
 }
 
 const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
-  const hasPreview = Boolean(stream.previewUrl);
+  const [preview, setPreview] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const cleanup = socketService.onPreview(({ streamId, preview }) => {
+      if (streamId === stream.id) {
+        setPreview(preview);
+      }
+    });
+
+    return cleanup;
+  }, [stream.id]);
   
   return (
     <div 
@@ -17,9 +28,9 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
       onClick={onClick}
     >
       <div className="relative w-full h-48">
-        {hasPreview ? (
+        {preview ? (
           <Image
-            src={stream.previewUrl!}
+            src={preview}
             alt={`${stream.title} preview`}
             fill
             className="object-cover"
@@ -31,11 +42,9 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
           </div>
         )}
         
-        {hasPreview && (
-          <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
-            LIVE
-          </div>
-        )}
+        <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
+          LIVE
+        </div>
       </div>
       
       <div className="p-4">

@@ -11,5 +11,4 @@ export interface Stream {
   ticker: string;
   coinAddress: string;
   description?: string;
-  previewUrl?: string;
 }

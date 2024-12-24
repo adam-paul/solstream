@@ -9,8 +9,8 @@ interface ServerToClientEvents {
   streamEnded: (streamId: string) => void;
   viewerJoined: (data: { streamId: string; count: number }) => void;
   viewerLeft: (data: { streamId: string; count: number }) => void;
-  previewUpdated: (data: { streamId: string; previewUrl: string }) => void;
   roleChanged: (data: { streamId: string; role: 'host' | 'viewer' | null }) => void;
+  streamPreview: (data: { streamId: string; preview: string }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
 }
 
@@ -19,7 +19,7 @@ interface ClientToServerEvents {
   endStream: (streamId: string) => void;
   joinStream: (streamId: string) => void;
   leaveStream: (streamId: string) => void;
-  updatePreview: (data: { streamId: string; previewUrl: string }) => void;
+  streamPreview: (data: { streamId: string; preview: string }) => void;
 }
 
 export class SocketService {
@@ -60,7 +60,6 @@ export class SocketService {
         reject(error);
       });
 
-      // Set a reasonable timeout
       setTimeout(() => reject(new Error('Socket connection timeout')), 5000);
     });
   }
@@ -93,11 +92,11 @@ export class SocketService {
     this.socket.emit('leaveStream', streamId);
   }
 
-  updatePreview(streamId: string, previewUrl: string): void {
+  updatePreview(streamId: string, preview: string): void {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
     }
-    this.socket.emit('updatePreview', { streamId, previewUrl });
+    this.socket.emit('streamPreview', { streamId, preview });
   }
 
   onStreamStarted(callback: ServerToClientEvents['streamStarted']): () => void {
@@ -124,10 +123,10 @@ export class SocketService {
     return () => this.socket?.off('viewerLeft', callback);
   }
 
-  onPreviewUpdated(callback: ServerToClientEvents['previewUpdated']): () => void {
+  onPreview(callback: ServerToClientEvents['streamPreview']): () => void {
     if (!this.socket) return () => {};
-    this.socket.on('previewUpdated', callback);
-    return () => this.socket?.off('previewUpdated', callback);
+    this.socket.on('streamPreview', callback);
+    return () => this.socket?.off('streamPreview', callback);
   }
 
   onRoleChanged(callback: ServerToClientEvents['roleChanged']): () => void {
