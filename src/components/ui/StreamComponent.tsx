@@ -48,46 +48,73 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     setTimeout(() => setError(null), 5000);
   }, []);
 
-  // Simplified preview capture
+  // Preview capture
   const capturePreview = useCallback(async () => {
-    console.log('Attempting preview capture');
-    if (!videoRef.current || !isLive) {
-      console.log('Early exit - conditions not met:', {
-        hasVideoRef: !!videoRef.current,
-        isLive
-      });
-      return;
-    }
-      
+    if (!videoRef.current) return;
+    
     const video = videoRef.current.querySelector('video');
-    console.log('Video element found:', {
-      hasVideo: !!video,
-      readyState: video?.readyState
-    });
-  
     if (!video || video.readyState < 2) return;
-      
+    
     try {
       const canvas = document.createElement('canvas');
       canvas.width = 640;
       canvas.height = 360;
       
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        console.log('Failed to get canvas context');
-        return;
-      }
-  
+      if (!ctx) return;
+
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const preview = canvas.toDataURL('image/jpeg', 0.7);
-      console.log('Preview captured, length:', preview.length);
-  
+
       socketService.updatePreview(streamId, preview);
-      console.log('Preview sent to socket service');
     } catch (error) {
       console.error('Preview capture failed:', error);
     }
-  }, [streamId, isLive]);
+  }, [streamId]);
+
+  // Media initialization
+  useEffect(() => {
+    if (!videoRef.current || !stream) return;
+    
+    const initializeMedia = async () => {
+      try {
+        await agoraService.initializeClient({
+          role: 'host',
+          streamId
+        });
+      
+        const { audioTrack, videoTrack } = await agoraService.initializeHostTracks({
+          cameraId: controls.selectedCamera || null,
+          microphoneId: controls.selectedMicrophone || null
+        });
+    
+        // Check both tracks
+        if (!audioTrack && !videoTrack) {
+          throw new Error('Failed to initialize media tracks');
+        }
+    
+        // Handle video display if available
+        if (videoTrack && videoRef.current) {
+          agoraService.playVideo(videoRef.current);
+          capturePreview();
+        }
+    
+        // Audio track doesn't need explicit play as it's handled internally
+        if (audioTrack) {
+          setControls(prev => ({ ...prev, audioEnabled: true }));
+        }
+    
+      } catch (err) {
+        handleMediaError('Failed to initialize media', err);
+      }
+    };
+
+    initializeMedia();
+
+    return () => {
+      agoraService.cleanup();
+    };
+  }, [stream, streamId, controls.selectedCamera, controls.selectedMicrophone, capturePreview, handleMediaError]);
 
   // Media control handlers
   const toggleVideo = useCallback(async () => {
@@ -122,40 +149,21 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     }
   }, [handleMediaError]);
 
-  // Initialize stream
+  // Start live streaming
   const startLiveStream = useCallback(async () => {
     if (!videoRef.current || !stream) return;
   
     try {
-      await agoraService.initializeClient({
-        role: 'host',
-        streamId
-      });
-    
-      const { audioTrack, videoTrack } = await agoraService.initializeHostTracks({
-        cameraId: controls.selectedCamera || null,
-        microphoneId: controls.selectedMicrophone || null
-      });
-    
-      if (!audioTrack && !videoTrack) {
-        throw new Error('Failed to initialize media tracks');
-      }
-  
-      if (videoTrack && videoRef.current) {
-        agoraService.playVideo(videoRef.current);
-      }
-  
       await agoraService.publishTracks();
       setIsLive(true);
-  
-      // Initial preview capture and interval setup
-      capturePreview();
-      previewIntervalRef.current = setInterval(capturePreview, 300000); // 5 minutes
+
+      // Set up periodic preview updates
+      const previewInterval = setInterval(capturePreview, 300000); // 5 minutes
+      previewIntervalRef.current = previewInterval;
     } catch (err) {
       handleMediaError('Failed to start stream', err);
-      await agoraService.cleanup();
     }
-  }, [stream, streamId, capturePreview, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
+  }, [stream, capturePreview, handleMediaError]);
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
@@ -175,8 +183,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
     const initialize = async () => {
       try {
-        await agoraService.cleanup();
-        
         const availableDevices = await agoraService.getDevices();
         if (!mountedRef.current) return;
         
