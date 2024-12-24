@@ -87,23 +87,19 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
           cameraId: controls.selectedCamera || null,
           microphoneId: controls.selectedMicrophone || null
         });
-    
-        // Check both tracks
+
         if (!audioTrack && !videoTrack) {
           throw new Error('Failed to initialize media tracks');
         }
-    
-        // Handle video display if available
+
         if (videoTrack && videoRef.current) {
           agoraService.playVideo(videoRef.current);
           capturePreview();
         }
-    
-        // Audio track doesn't need explicit play as it's handled internally
+
         if (audioTrack) {
           setControls(prev => ({ ...prev, audioEnabled: true }));
         }
-    
       } catch (err) {
         handleMediaError('Failed to initialize media', err);
       }
@@ -112,7 +108,10 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     initializeMedia();
 
     return () => {
-      agoraService.cleanup();
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+      }
+      agoraService.cleanup().catch(console.error);
     };
   }, [stream, streamId, controls.selectedCamera, controls.selectedMicrophone, capturePreview, handleMediaError]);
 
@@ -170,9 +169,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     if (previewIntervalRef.current) {
       clearInterval(previewIntervalRef.current);
     }
-    
     await agoraService.cleanup();
-    setIsLive(false);
     endStream(streamId);
     window.location.href = '/';
   }, [streamId, endStream]);
@@ -183,6 +180,8 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
     const initialize = async () => {
       try {
+        await agoraService.cleanup();
+        
         const availableDevices = await agoraService.getDevices();
         if (!mountedRef.current) return;
         
@@ -203,10 +202,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
     return () => {
       mountedRef.current = false;
-      if (previewIntervalRef.current) {
-        clearInterval(previewIntervalRef.current);
-      }
-      agoraService.cleanup().catch(console.error);
     };
   }, [handleMediaError]);
 
