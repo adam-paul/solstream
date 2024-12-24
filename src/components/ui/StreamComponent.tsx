@@ -50,26 +50,42 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
   // Simplified preview capture
   const capturePreview = useCallback(async () => {
-    if (!videoRef.current || !isLive) return;
-    
+    console.log('Attempting preview capture');
+    if (!videoRef.current || !isLive) {
+      console.log('Early exit - conditions not met:', {
+        hasVideoRef: !!videoRef.current,
+        isLive
+      });
+      return;
+    }
+      
     const video = videoRef.current.querySelector('video');
+    console.log('Video element found:', {
+      hasVideo: !!video,
+      readyState: video?.readyState
+    });
+  
     if (!video || video.readyState < 2) return;
-    
+      
     try {
       const canvas = document.createElement('canvas');
-      canvas.width = 640;  // Fixed size
-      canvas.height = 360; // 16:9 ratio
+      canvas.width = 640;
+      canvas.height = 360;
       
       const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
+      if (!ctx) {
+        console.log('Failed to get canvas context');
+        return;
+      }
+  
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       const preview = canvas.toDataURL('image/jpeg', 0.7);
-      canvas.remove();
-
+      console.log('Preview captured, length:', preview.length);
+  
       socketService.updatePreview(streamId, preview);
+      console.log('Preview sent to socket service');
     } catch (error) {
-      console.error('Failed to capture preview:', error);
+      console.error('Preview capture failed:', error);
     }
   }, [streamId, isLive]);
 

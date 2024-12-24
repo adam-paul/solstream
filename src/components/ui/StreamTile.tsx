@@ -14,11 +14,16 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
   
   useEffect(() => {
     const cleanup = socketService.onPreview(({ streamId, preview }) => {
+      console.log('Preview received in StreamTile:', {
+        streamId,
+        matchesCurrentStream: streamId === stream.id,
+        previewLength: preview?.length
+      });
       if (streamId === stream.id) {
         setPreview(preview);
       }
     });
-
+  
     return cleanup;
   }, [stream.id]);
   
