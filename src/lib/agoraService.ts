@@ -1,14 +1,16 @@
 // src/lib/agoraService.ts
 
-import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack, IAgoraRTCRemoteUser } from '@/types/agora';
+import type { IAgoraRTCClient, IAgoraRTCRemoteUser } from '@/types/agora';
 import type { IAgoraService } from './agoraServiceInterface';
 import type { StreamConfig, MediaDevices, DeviceConfig, LocalTracks } from '@/types/agora';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 
 export class AgoraService implements IAgoraService {
   private client: IAgoraRTCClient | null = null;
-  private videoTrack: ICameraVideoTrack | null = null;
-  private audioTrack: IMicrophoneAudioTrack | null = null;
+  private localTracks: LocalTracks = {
+    audioTrack: null,
+    videoTrack: null
+  };
   private videoContainer: HTMLElement | null = null;
   private readonly appId: string;
   
@@ -103,43 +105,26 @@ export class AgoraService implements IAgoraService {
       }
     }).catch(() => null);
 
-    this.audioTrack = audioTrack;
-    this.videoTrack = videoTrack;
-
-    return { audioTrack, videoTrack };
+    this.localTracks = { audioTrack, videoTrack };
+    return this.localTracks;
   }
 
   async publishTracks(): Promise<void> {
     if (!this.client) throw new Error('Client not initialized');
 
-    const tracks = [];
-    if (this.audioTrack) tracks.push(this.audioTrack);
-    if (this.videoTrack) tracks.push(this.videoTrack);
-
+    const tracks = Object.values(this.localTracks).filter(track => track !== null);
     if (tracks.length > 0) {
       await this.client.publish(tracks);
     }
   }
 
   playVideo(container: HTMLElement): void {
-    // First clean up any existing video elements
-    this.cleanupVideoElements();
-    
     // Store reference to container
     this.videoContainer = container;
     
     // Play video if track exists
-    if (this.videoTrack) {
-      this.videoTrack.play(container);
-    }
-  }
-
-  private cleanupVideoElements(): void {
-    if (this.videoContainer) {
-      while (this.videoContainer.firstChild) {
-        this.videoContainer.removeChild(this.videoContainer.firstChild);
-      }
-      this.videoContainer = null;
+    if (this.localTracks.videoTrack) {
+      this.localTracks.videoTrack.play(container);
     }
   }
 
@@ -169,7 +154,7 @@ export class AgoraService implements IAgoraService {
   }
 
   async switchCamera(deviceId: string): Promise<void> {
-    if (!this.videoTrack) {
+    if (!this.localTracks.videoTrack) {
       throw new Error('Video track not initialized');
     }
 
@@ -183,26 +168,25 @@ export class AgoraService implements IAgoraService {
     });
 
     if (this.client) {
-      await this.client.unpublish(this.videoTrack);
+      await this.client.unpublish(this.localTracks.videoTrack);
     }
     
-    this.videoTrack.stop();
-    await this.videoTrack.close();
+    this.localTracks.videoTrack.stop();
+    await this.localTracks.videoTrack.close();
     
-    this.videoTrack = newTrack;
+    this.localTracks.videoTrack = newTrack;
     
     if (this.client) {
       await this.client.publish(newTrack);
     }
 
-    // If we have a container, play the new track
     if (this.videoContainer) {
       this.playVideo(this.videoContainer);
     }
   }
 
   async switchMicrophone(deviceId: string): Promise<void> {
-    if (!this.audioTrack) {
+    if (!this.localTracks.audioTrack) {
       throw new Error('Audio track not initialized');
     }
 
@@ -214,13 +198,13 @@ export class AgoraService implements IAgoraService {
     });
 
     if (this.client) {
-      await this.client.unpublish(this.audioTrack);
+      await this.client.unpublish(this.localTracks.audioTrack);
     }
     
-    this.audioTrack.stop();
-    await this.audioTrack.close();
+    this.localTracks.audioTrack.stop();
+    await this.localTracks.audioTrack.close();
     
-    this.audioTrack = newTrack;
+    this.localTracks.audioTrack = newTrack;
     
     if (this.client) {
       await this.client.publish(newTrack);
@@ -228,52 +212,51 @@ export class AgoraService implements IAgoraService {
   }
 
   async toggleVideo(enabled: boolean): Promise<void> {
-    if (this.videoTrack) {
-      await this.videoTrack.setEnabled(enabled);
+    if (this.localTracks.videoTrack) {
+      await this.localTracks.videoTrack.setEnabled(enabled);
     }
   }
 
   async toggleAudio(enabled: boolean): Promise<void> {
-    if (this.audioTrack) {
-      await this.audioTrack.setEnabled(enabled);
+    if (this.localTracks.audioTrack) {
+      await this.localTracks.audioTrack.setEnabled(enabled);
     }
   }
 
   async cleanup(): Promise<void> {
-    // First clean up DOM elements
-    this.cleanupVideoElements();
-
-    // Then clean up tracks and client
     try {
-      // Cleanup video track
-      if (this.videoTrack) {
-        this.videoTrack.stop();
-        await this.videoTrack.close();
-        this.videoTrack = null;
-      }
-
-      // Cleanup audio track
-      if (this.audioTrack) {
-        this.audioTrack.stop();
-        await this.audioTrack.close();
-        this.audioTrack = null;
-      }
-
-      // Cleanup client
-      if (this.client) {
-        this.client.removeAllListeners();
-        if (this.client.connectionState === 'CONNECTED' || 
-            this.client.connectionState === 'CONNECTING') {
-          await this.client.leave();
+      // 1. Clean DOM first to prevent memory leaks
+      if (this.videoContainer) {
+        while (this.videoContainer.firstChild) {
+          this.videoContainer.removeChild(this.videoContainer.firstChild);
         }
-        this.client = null;
+        this.videoContainer = null;
       }
+
+      // 2. Cleanup tracks in parallel for faster execution
+      const trackCleanup = Object.values(this.localTracks)
+        .filter(track => track !== null)
+        .map(async track => {
+          track?.stop();
+          await track?.close();
+        });
+      
+      await Promise.all(trackCleanup);
+      this.localTracks = { audioTrack: null, videoTrack: null };
+
+      // 3. Cleanup client last
+      if (this.client?.connectionState === 'CONNECTED' || 
+          this.client?.connectionState === 'CONNECTING') {
+        this.client.removeAllListeners();
+        await this.client.leave();
+      }
+      this.client = null;
     } catch (error) {
       console.error('Error during cleanup:', error);
-      // Still clear references even if cleanup fails
-      this.videoTrack = null;
-      this.audioTrack = null;
+      // Reset state even if cleanup fails
+      this.localTracks = { audioTrack: null, videoTrack: null };
       this.client = null;
+      this.videoContainer = null;
     }
   }
 }
