@@ -5,6 +5,7 @@ import { Mic, Video, VideoOff, MicOff, Settings } from 'lucide-react';
 import { agoraService } from '@/lib/agoraService';
 import { useStreamStore } from '@/lib/StreamStore';
 import { socketService } from '@/lib/socketService';
+import { useRouter } from 'next/navigation';
 
 interface StreamComponentProps {
   streamId: string;
@@ -22,7 +23,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const previewIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const mountedRef = useRef(true);
-  
+  const router = useRouter();
   // State
   const [error, setError] = useState<string | null>(null);
   const [isLive, setIsLive] = useState<boolean>(false);
@@ -167,13 +168,26 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
-    if (previewIntervalRef.current) {
-      clearInterval(previewIntervalRef.current);
+    try {
+      // First clear preview interval
+      if (previewIntervalRef.current) {
+        clearInterval(previewIntervalRef.current);
+      }
+  
+      // Wait for Agora cleanup to complete
+      await agoraService.cleanup();
+      
+      // Then handle stream state cleanup
+      endStream(streamId);
+  
+      // Finally use Next.js router for navigation
+      router.push('/');
+    } catch (error) {
+      console.error('Error ending stream:', error);
+      // Still try to navigate even if cleanup fails
+      router.push('/');
     }
-    await agoraService.cleanup();
-    endStream(streamId);
-    window.location.href = '/';
-  }, [streamId, endStream]);
+  }, [streamId, endStream, router]);
 
   // Initialize devices
   useEffect(() => {
