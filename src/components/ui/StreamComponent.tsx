@@ -115,7 +115,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       }
       agoraService.cleanup().catch(console.error);
     };
-  }, [stream, streamId, controls.selectedCamera, controls.selectedMicrophone, capturePreview, handleMediaError]);
+  }, [stream, streamId, capturePreview, handleMediaError]);
 
   // Media control handlers
   const toggleVideo = useCallback(async () => {
