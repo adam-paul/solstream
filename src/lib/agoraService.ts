@@ -1,8 +1,14 @@
 // src/lib/agoraService.ts
 
-import type { IAgoraRTCClient, IAgoraRTCRemoteUser } from '@/types/agora';
-import type { IAgoraService } from './agoraServiceInterface';
-import type { StreamConfig, MediaDevices, DeviceConfig, LocalTracks } from '@/types/agora';
+import type { 
+  IAgoraRTCClient, 
+  IAgoraRTCRemoteUser,
+  StreamConfig, 
+  MediaDevices, 
+  DeviceConfig, 
+  LocalTracks,
+  IAgoraService 
+} from '@/types/agora';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 
 export class AgoraService implements IAgoraService {
