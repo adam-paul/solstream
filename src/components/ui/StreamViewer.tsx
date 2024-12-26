@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, AlertCircle, Clock } from 'lucide-react';
 import { agoraService } from '@/lib/agoraService';
 import { useStreamStore } from '@/lib/StreamStore';
 import type { Stream } from '@/types/stream';
@@ -49,7 +49,10 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     mountedRef.current = true;
 
     const initialize = async () => {
-      if (!videoRef.current) return;
+      if (!videoRef.current || !stream.isLive) {
+        setIsConnecting(false); // Don't show connecting if not live
+        return;
+      }
 
       try {
         setIsConnecting(true);
@@ -79,7 +82,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       mountedRef.current = false;
       agoraService.cleanup().catch(console.error);
     };
-  }, [stream.id, handleUserPublished, handleMediaError]);
+  }, [stream.id, stream.isLive, handleUserPublished, handleMediaError]);
 
   // Check if user can view this stream
   if (isStreamHost(stream.id)) {
@@ -101,10 +104,16 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
           </div>
           <div className="flex items-center space-x-2">
             <div className={`w-2 h-2 rounded-full ${
-              error ? 'bg-red-500' : isConnecting ? 'bg-yellow-500' : 'bg-green-500'
+              error ? 'bg-red-500' : 
+              !stream.isLive ? 'bg-yellow-500' :
+              isConnecting ? 'bg-yellow-500' : 
+              'bg-green-500'
             } animate-pulse`} />
             <span className="text-sm text-gray-400">
-              {error ? 'Error' : isConnecting ? 'Connecting' : 'Live'}
+              {error ? 'Error' : 
+               !stream.isLive ? 'Waiting for stream' :
+               isConnecting ? 'Connecting' : 
+               'Live'}
             </span>
           </div>
         </div>
@@ -117,13 +126,18 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
           className="w-full aspect-video bg-black"
         />
         
-        {/* Loading/Error States */}
-        {(isConnecting || error) && (
+        {/* Loading/Error/Waiting States */}
+        {(!stream.isLive || isConnecting || error) && (
           <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
             {error ? (
               <div className="text-center px-4">
                 <AlertCircle className="mx-auto mb-2 text-red-500" size={24} />
                 <p className="text-red-500 mb-4">{error}</p>
+              </div>
+            ) : !stream.isLive ? (
+              <div className="text-center">
+                <Clock className="mx-auto mb-2" size={24} />
+                <p className="text-gray-400">Waiting for stream to start...</p>
               </div>
             ) : (
               <div className="text-center">
