@@ -11,4 +11,5 @@ export interface Stream {
   ticker: string;
   coinAddress: string;
   description?: string;
+  isLive: boolean;
 }

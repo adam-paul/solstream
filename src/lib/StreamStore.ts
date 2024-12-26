@@ -10,15 +10,13 @@ type UserRole = 'host' | 'viewer' | null;
 
 interface StreamState {
   streams: Map<string, Stream>;
-  activeStreams: Set<string>;
   userRoles: Map<string, UserRole>;
   isInitialized: boolean;
+  setStreamLiveStatus: (streamId: string, isLive: boolean) => void;
   
   // Core state accessors
   getStream: (id: string) => Stream | undefined;
   getAllStreams: () => Stream[];
-  getActiveStreams: () => Stream[];
-  isStreamActive: (id: string) => boolean;
   isStreamHost: (streamId: string) => boolean;
   
   // Role management
@@ -36,21 +34,12 @@ interface StreamState {
 
 const useStreamStore = create<StreamState>()((set, get) => ({
   streams: new Map(),
-  activeStreams: new Set(),
   userRoles: new Map(),
   isInitialized: false,
 
   getStream: (id) => get().streams.get(id),
   
   getAllStreams: () => Array.from(get().streams.values()),
-  
-  getActiveStreams: () => (
-    Array.from(get().activeStreams)
-      .map(id => get().streams.get(id))
-      .filter((stream): stream is Stream => stream !== undefined)
-  ),
-  
-  isStreamActive: (id) => get().activeStreams.has(id),
   
   isStreamHost: (streamId) => {
     const stream = get().streams.get(streamId);
@@ -76,6 +65,15 @@ const useStreamStore = create<StreamState>()((set, get) => ({
     );
   },
 
+  setStreamLiveStatus: (streamId: string, isLive: boolean) => set(state => {
+    const stream = state.streams.get(streamId);
+    if (!stream || stream.isLive === isLive) return state; 
+  
+    const newStreams = new Map(state.streams);
+    newStreams.set(streamId, { ...stream, isLive });
+    return { streams: newStreams };
+  }),
+
   initializeStore: async () => {
     try {
       const socket = await socketService.connect();
@@ -94,24 +92,23 @@ const useStreamStore = create<StreamState>()((set, get) => ({
       socketService.onStreamStarted((stream) => {
         set(state => {
           const newStreams = new Map(state.streams);
-          const newActiveStreams = new Set(state.activeStreams);
           newStreams.set(stream.id, stream);
-          newActiveStreams.add(stream.id);
-          return { streams: newStreams, activeStreams: newActiveStreams };
+          return { streams: newStreams };
         });
+      });
+
+      socketService.onStreamLiveStatusChanged(({ streamId, isLive }) => {
+        get().setStreamLiveStatus(streamId, isLive);
       });
 
       socketService.onStreamEnded((id) => {
         set(state => {
           const newStreams = new Map(state.streams);
-          const newActiveStreams = new Set(state.activeStreams);
           const newUserRoles = new Map(state.userRoles);
           newStreams.delete(id);
-          newActiveStreams.delete(id);
           newUserRoles.delete(id);
           return { 
             streams: newStreams, 
-            activeStreams: newActiveStreams,
             userRoles: newUserRoles 
           };
         });
@@ -144,16 +141,13 @@ const useStreamStore = create<StreamState>()((set, get) => ({
       // Initialize state with fetched streams
       set(state => {
         const newStreams = new Map(state.streams);
-        const newActiveStreams = new Set<string>();
 
         streams.forEach(stream => {
           newStreams.set(stream.id, stream);
-          newActiveStreams.add(stream.id);
         });
 
         return {
           streams: newStreams,
-          activeStreams: newActiveStreams,
           isInitialized: true
         };
       });
@@ -170,7 +164,8 @@ const useStreamStore = create<StreamState>()((set, get) => ({
       const newStream: Stream = {
         ...streamData,
         id: streamId,
-        viewers: 0
+        viewers: 0,
+        isLive: false,
       };
 
       socketService.startStream(newStream);

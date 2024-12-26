@@ -26,7 +26,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   const router = useRouter();
   // State
   const [error, setError] = useState<string | null>(null);
-  const [isLive, setIsLive] = useState<boolean>(false);
   const [controls, setControls] = useState<StreamControls>({
     videoEnabled: true,
     audioEnabled: true,
@@ -39,7 +38,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   }>({ cameras: [], microphones: [] });
   const [showSettings, setShowSettings] = useState(false);
 
-  const { getStream, endStream } = useStreamStore();
+  const { getStream, endStream, setStreamLiveStatus } = useStreamStore();
   const stream = getStream(streamId);
 
   // Error handling
@@ -156,7 +155,10 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   
     try {
       await agoraService.publishTracks();
-      setIsLive(true);
+      
+      // Update store and notify other clients via socket
+      setStreamLiveStatus(streamId, true);
+      socketService.updateStreamLiveStatus( { streamId, isLive: true });
 
       // Set up periodic preview updates
       const previewInterval = setInterval(capturePreview, 300000); // 5 minutes
@@ -164,12 +166,17 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     } catch (err) {
       handleMediaError('Failed to start stream', err);
     }
-  }, [stream, capturePreview, handleMediaError]);
+  }, [stream, streamId, setStreamLiveStatus, capturePreview, handleMediaError]);
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
     try {
-      // First clear preview interval
+      if (stream?.isLive) {
+        setStreamLiveStatus(streamId, false);
+        socketService.updateStreamLiveStatus({ streamId, isLive: false });
+      }
+
+      // Clear preview interval
       if (previewIntervalRef.current) {
         clearInterval(previewIntervalRef.current);
       }
@@ -184,10 +191,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       router.push('/');
     } catch (error) {
       console.error('Error ending stream:', error);
-      // Still try to navigate even if cleanup fails
       router.push('/');
     }
-  }, [streamId, endStream, router]);
+  }, [streamId, stream?.isLive, setStreamLiveStatus, endStream, router]);
 
   // Initialize devices
   useEffect(() => {
@@ -246,13 +252,13 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       <div className="flex justify-between items-center mb-4">
         <div>
           <h2 className="text-2xl font-bold text-yellow-400">
-            {isLive ? 'Live: ' : 'Preview: '}{stream.title}
+            {stream.isLive ? 'Live: ' : 'Preview: '}{stream.title}
           </h2>
           {stream.ticker && <p className="text-gray-400">${stream.ticker}</p>}
         </div>
         
         <div className="flex gap-2">
-          {!isLive && (
+          {!stream.isLive && (
             <button
               onClick={startLiveStream}
               disabled={!!error}
@@ -359,7 +365,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       )}
 
       {/* Viewer Count */}
-      {isLive && stream.viewers > 0 && (
+      {stream.isLive && stream.viewers > 0 && (
         <div className="mt-4 text-sm text-gray-400">
           {stream.viewers} viewer{stream.viewers !== 1 ? 's' : ''} watching
         </div>

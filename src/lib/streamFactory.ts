@@ -13,4 +13,5 @@ export const createStream = (
   marketCap: '0',
   description: '',
   thumbnail: "/api/placeholder/400/300",
+  isLive: false,
 });

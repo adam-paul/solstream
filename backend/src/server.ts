@@ -21,6 +21,7 @@ interface ServerToClientEvents {
   streamPreview: (data: { streamId: StreamId; preview: string }) => void;
   roleChanged: (data: { streamId: StreamId; role: 'host' | 'viewer' | null }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
+  streamLiveStatusChanged: (data: { streamId: StreamId; isLive: boolean }) => void;
 }
 
 interface ClientToServerEvents {
@@ -29,6 +30,7 @@ interface ClientToServerEvents {
   joinStream: (streamId: StreamId) => void;
   leaveStream: (streamId: StreamId) => void;
   streamPreview: (data: { streamId: StreamId; preview: string }) => void;
+  updateStreamLiveStatus: (data: { streamId: StreamId; isLive: boolean }) => void;
 }
 
 export class StreamServer {
@@ -87,6 +89,24 @@ export class StreamServer {
 
           await this.redisManager.addStream(stream);
           this.io.emit('streamStarted', stream);
+        } catch (error) {
+          this.handleError(socket, error);
+        }
+      });
+
+      socket.on('updateStreamLiveStatus', async ({ streamId, isLive }) => {
+        try {
+          const stream = await this.redisManager.getStream(streamId);
+          if (!stream || stream.creator !== userId) {
+            throw new Error('Unauthorized');
+          }
+
+          await this.redisManager.updateStreamData(streamId, stream => ({
+            ...stream,
+            isLive
+          }));
+
+          this.io.emit('streamLiveStatusChanged', { streamId, isLive });
         } catch (error) {
           this.handleError(socket, error);
         }
