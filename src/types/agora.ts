@@ -86,8 +86,8 @@ declare global {
       createCameraVideoTrack(config?: {
         deviceId?: string;
         encoderConfig?: {
-          width: number;
-          height: number;
+          width: number | { min: number; ideal: number; max: number };
+          height: number | { min: number; ideal: number; max: number };
           frameRate: number;
           bitrateMin?: number;
           bitrateMax?: number;

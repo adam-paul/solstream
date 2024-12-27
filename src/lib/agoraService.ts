@@ -36,20 +36,11 @@ export class AgoraService implements IAgoraService {
       hasToken: !!config.token
     });
   
-    const clientConfig = {
-      mode: "live" as const,
-      codec: "vp8" as const,
-      role: config.role
-    };
-  
-    this.client = AgoraRTC.createClient(clientConfig);
-    
-    // For hosts, set client role before joining
-    if (config.role === 'host') {
-      await this.client.setClientRole('host');
-    } else {
-      await this.client.setClientRole('audience');
-    }
+    this.client = AgoraRTC.createClient({
+      mode: "live",
+      codec: "vp8",
+      role: config.role === 'host' ? 'host' : 'audience'
+    });
   
     const tokenData = config.token ? 
       { token: config.token, uid: config.uid } : 
@@ -102,26 +93,31 @@ export class AgoraService implements IAgoraService {
   }
 
   async initializeHostTracks(deviceConfig?: DeviceConfig): Promise<LocalTracks> {
-    const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-      microphoneId: deviceConfig?.microphoneId || undefined,
-      AEC: true,
-      ANS: true,
-      AGC: true
-    }).catch(() => null);
-
-    const videoTrack = await AgoraRTC.createCameraVideoTrack({
-      cameraId: deviceConfig?.cameraId || undefined,
-      encoderConfig: {
-        width: { min: 640, ideal: 1280, max: 1920 },
-        height: { min: 480, ideal: 720, max: 1080 },
-        frameRate: 30,
-        bitrateMin: 600,
-        bitrateMax: 1500
-      }
-    }).catch(() => null);
-
-    this.localTracks = { audioTrack, videoTrack };
-    return this.localTracks;
+    try {
+      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+        microphoneId: deviceConfig?.microphoneId || undefined,
+        AEC: true,
+        ANS: true,
+        AGC: true
+      });
+  
+      const videoTrack = await AgoraRTC.createCameraVideoTrack({
+        cameraId: deviceConfig?.cameraId || undefined,
+        encoderConfig: {
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          frameRate: 30,
+          bitrateMin: 600,
+          bitrateMax: 1500
+        }
+      });
+  
+      this.localTracks = { audioTrack, videoTrack };
+      return this.localTracks;
+    } catch (error) {
+      console.error('Failed to initialize tracks:', error);
+      throw error; 
+    }
   }
 
   async publishTracks(): Promise<void> {
