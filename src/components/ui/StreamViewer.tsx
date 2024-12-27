@@ -35,22 +35,16 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     user: IAgoraRTCRemoteUser,
     mediaType: 'audio' | 'video'
   ) => {
-    console.log('User published event:', { 
-      mediaType, 
-      hasTrack: !!user[`${mediaType}Track`],
-      userId: user.uid
-    });
+    if (!videoRef.current) return;
   
-    if (!videoRef.current) {
-      console.log('No video container available');
-      return;
-    }
-    
     try {
+      // Wait for track to be actually ready
+      if (mediaType === 'video' && !user.videoTrack?.isPlaying) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
       await agoraService.handleUserPublished(videoRef.current, user, mediaType);
-      console.log('Successfully handled published media:', mediaType);
     } catch (err) {
-      console.error('Failed to handle published media:', err);
       handleMediaError('Failed to load stream media', err);
     }
   }, [handleMediaError]);
