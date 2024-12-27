@@ -38,7 +38,31 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     if (!videoRef.current) return;
   
     try {
+      console.log('User Published Event:', {
+        uid: user.uid,
+        mediaType,
+        hasVideoTrack: !!user.videoTrack,
+        hasAudioTrack: !!user.audioTrack,
+        videoMuted: user.hasVideo, // Check mute state
+        audioMuted: user.hasAudio, // Check mute state
+        videoTrackState: user.videoTrack?.getMediaStreamTrack().readyState,
+        audioTrackState: user.audioTrack?.getMediaStreamTrack().readyState,
+      });
+  
       await agoraService.handleUserPublished(videoRef.current, user, mediaType);
+  
+      // Log post-subscription state
+      console.log('Post-subscription state:', {
+        uid: user.uid,
+        mediaType,
+        hasVideoTrack: !!user.videoTrack,
+        hasAudioTrack: !!user.audioTrack,
+        videoMuted: user.hasVideo,
+        audioMuted: user.hasAudio,
+        videoTrackState: user.videoTrack?.getMediaStreamTrack().readyState,
+        audioTrackState: user.audioTrack?.getMediaStreamTrack().readyState,
+      });
+  
     } catch (err) {
       handleMediaError('Failed to load stream media', err);
     }

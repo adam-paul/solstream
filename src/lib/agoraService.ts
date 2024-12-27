@@ -159,26 +159,49 @@ export class AgoraService implements IAgoraService {
       throw new Error('Client not initialized');
     }
   
-    console.log('Attempting to subscribe:', { 
+    console.log('Pre-subscribe state:', { 
       mediaType,
       userId: user.uid,
       connectionState: this.client.connectionState,
+      hasVideoTrack: !!user.videoTrack,
+      hasAudioTrack: !!user.audioTrack,
+      videoEnabled: user.hasVideo,
+      audioEnabled: user.hasAudio
     });
   
     await this.client.subscribe(user, mediaType);
-    console.log('Subscribed to:', mediaType);
+    console.log('Post-subscribe state:', {
+      mediaType,
+      trackExists: mediaType === 'video' ? !!user.videoTrack : !!user.audioTrack,
+      trackEnabled: mediaType === 'video' ? user.hasVideo : user.hasAudio,
+      trackState: mediaType === 'video' 
+        ? user.videoTrack?.getMediaStreamTrack().readyState 
+        : user.audioTrack?.getMediaStreamTrack().readyState
+    });
     
     if (mediaType === 'video' && user.videoTrack) {
+      console.log('Attempting video play:', {
+        trackId: user.videoTrack.getMediaStreamTrack().id,
+        trackEnabled: user.videoTrack.getMediaStreamTrack().enabled,
+        trackMuted: user.videoTrack.getMediaStreamTrack().muted
+      });
       user.videoTrack.play(container);
-      console.log('Video track playing');
+      console.log('Video track played');
     } else if (mediaType === 'audio' && user.audioTrack) {
+      console.log('Attempting audio play:', {
+        trackId: user.audioTrack.getMediaStreamTrack().id,
+        trackEnabled: user.audioTrack.getMediaStreamTrack().enabled,
+        trackMuted: user.audioTrack.getMediaStreamTrack().muted
+      });
       user.audioTrack.play();
-      console.log('Audio track playing');
+      console.log('Audio track played');
     } else {
       console.log('No track available after subscription:', {
         mediaType,
         hasVideoTrack: !!user.videoTrack,
-        hasAudioTrack: !!user.audioTrack
+        hasAudioTrack: !!user.audioTrack,
+        videoEnabled: user.hasVideo,
+        audioEnabled: user.hasAudio
       });
     }
   }
