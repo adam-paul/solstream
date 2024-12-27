@@ -21,7 +21,6 @@ interface StreamControls {
 const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   // Refs
   const videoRef = useRef<HTMLDivElement>(null);
-  const previewIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined);
   const mountedRef = useRef(true);
   const router = useRouter();
   // State
@@ -48,30 +47,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     setTimeout(() => setError(null), 5000);
   }, []);
 
-  // Preview capture
-  const capturePreview = useCallback(async () => {
-    if (!videoRef.current) return;
-    
-    const video = videoRef.current.querySelector('video');
-    if (!video || video.readyState < 2) return;
-    
-    try {
-      const canvas = document.createElement('canvas');
-      canvas.width = 640;
-      canvas.height = 360;
-      
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const preview = canvas.toDataURL('image/jpeg', 0.7);
-
-      socketService.updatePreview(streamId, preview);
-    } catch (error) {
-      console.error('Preview capture failed:', error);
-    }
-  }, [streamId]);
-
   // Media initialization
   useEffect(() => {
     if (!videoRef.current || !stream) return;
@@ -94,7 +69,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
         if (videoTrack && videoRef.current) {
           agoraService.playVideo(videoRef.current);
-          capturePreview();
         }
 
         if (audioTrack) {
@@ -108,12 +82,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     initializeMedia();
 
     return () => {
-      if (previewIntervalRef.current) {
-        clearInterval(previewIntervalRef.current);
-      }
       agoraService.cleanup().catch(console.error);
     };
-  }, [stream, streamId, controls.selectedCamera, controls.selectedMicrophone, capturePreview, handleMediaError]);
+  }, [stream, streamId, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
 
   // Media control handlers
   const toggleVideo = useCallback(async () => {
@@ -159,13 +130,10 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       // Update state
       socketService.updateStreamLiveStatus({ streamId, isLive: true });
   
-      // Set up preview updates
-      const previewInterval = setInterval(capturePreview, 300000);
-      previewIntervalRef.current = previewInterval;
     } catch (err) {
       handleMediaError('Failed to start stream', err);
     }
-  }, [stream, streamId, capturePreview, handleMediaError]);
+  }, [stream, streamId, handleMediaError]);
   
 
   // Handle stream end
@@ -174,11 +142,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       if (stream?.isLive) {
         setStreamLiveStatus(streamId, false);
         socketService.updateStreamLiveStatus({ streamId, isLive: false });
-      }
-
-      // Clear preview interval
-      if (previewIntervalRef.current) {
-        clearInterval(previewIntervalRef.current);
       }
   
       // Wait for Agora cleanup to complete

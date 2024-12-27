@@ -18,7 +18,6 @@ interface ServerToClientEvents {
   streamEnded: (streamId: StreamId) => void;
   viewerJoined: (data: { streamId: StreamId; count: ViewerCount }) => void;
   viewerLeft: (data: { streamId: StreamId; count: ViewerCount }) => void;
-  streamPreview: (data: { streamId: StreamId; preview: string }) => void;
   roleChanged: (data: { streamId: StreamId; role: 'host' | 'viewer' | null }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
   streamLiveStatusChanged: (data: { streamId: StreamId; isLive: boolean }) => void;
@@ -29,7 +28,6 @@ interface ClientToServerEvents {
   endStream: (streamId: StreamId) => void;
   joinStream: (streamId: StreamId) => void;
   leaveStream: (streamId: StreamId) => void;
-  streamPreview: (data: { streamId: StreamId; preview: string }) => void;
   updateStreamLiveStatus: (data: { streamId: StreamId; isLive: boolean }) => void;
 }
 
@@ -144,11 +142,6 @@ export class StreamServer {
           this.io.to(streamId).emit('viewerJoined', { streamId, count: roomSize });
           socket.emit('roleChanged', { streamId, role: 'viewer' });
 
-          // Send existing preview if available
-          const preview = await this.redisManager.getStreamPreview(streamId);
-          if (preview) {
-            socket.emit('streamPreview', { streamId, preview });
-          }
         } catch (error) {
           this.handleError(socket, error);
         }
@@ -167,20 +160,6 @@ export class StreamServer {
 
           this.io.to(streamId).emit('viewerLeft', { streamId, count: roomSize });
           socket.emit('roleChanged', { streamId, role: null });
-        } catch (error) {
-          this.handleError(socket, error);
-        }
-      });
-
-      socket.on('streamPreview', async ({ streamId, preview }) => {
-        try {
-          const stream = await this.redisManager.getStream(streamId);
-          if (!stream || stream.creator !== userId) {
-            throw new Error('Unauthorized');
-          }
-
-          await this.redisManager.setStreamPreview(streamId, preview);
-          this.io.emit('streamPreview', { streamId, preview });
         } catch (error) {
           this.handleError(socket, error);
         }

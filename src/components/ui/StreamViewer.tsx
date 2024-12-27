@@ -93,7 +93,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       mountedRef.current = false;
       agoraService.cleanup().catch(console.error);
     };
-  }, [stream.id, handleUserPublished, handleMediaError]);
+  }, [stream.id, stream.isLive, handleUserPublished, handleMediaError]);
 
   // Check if user can view this stream
   if (isStreamHost(stream.id)) {

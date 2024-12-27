@@ -12,8 +12,6 @@ class RedisManager {
   private redis: Redis;
   private readonly STREAM_KEY = 'streams';
   private readonly STREAM_METADATA_KEY = 'stream_metadata';
-  private readonly PREVIEW_KEY_PREFIX = 'preview:';
-  private readonly PREVIEW_TTL = 360; 
 
   constructor() {
     this.redis = new Redis({
@@ -58,7 +56,6 @@ class RedisManager {
       const pipeline = this.redis.pipeline();
       pipeline.hdel(this.STREAM_KEY, streamId);
       pipeline.hdel(this.STREAM_METADATA_KEY, streamId);
-      pipeline.del(`${this.PREVIEW_KEY_PREFIX}${streamId}`);
       await pipeline.exec();
     }, 'Failed to remove stream');
   }
@@ -92,22 +89,6 @@ class RedisManager {
         JSON.stringify(updatedStream)
       );
     }, 'Failed to update stream');
-  }
-
-  async setStreamPreview(streamId: string, preview: string): Promise<void> {
-    await this.execCommand(async () => {
-      await this.redis.setex(
-        `${this.PREVIEW_KEY_PREFIX}${streamId}`,
-        this.PREVIEW_TTL,
-        preview
-      );
-    }, 'Failed to set stream preview');
-  }
-
-  async getStreamPreview(streamId: string): Promise<string | null> {
-    return this.execCommand(async () => {
-      return this.redis.get(`${this.PREVIEW_KEY_PREFIX}${streamId}`);
-    }, 'Failed to get stream preview');
   }
 
   async updateStreamRole(

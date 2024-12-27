@@ -10,7 +10,6 @@ interface ServerToClientEvents {
   viewerJoined: (data: { streamId: string; count: number }) => void;
   viewerLeft: (data: { streamId: string; count: number }) => void;
   roleChanged: (data: { streamId: string; role: 'host' | 'viewer' | null }) => void;
-  streamPreview: (data: { streamId: string; preview: string }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
   streamLiveStatusChanged: (data: { streamId: string; isLive: boolean }) => void;
 }
@@ -20,7 +19,6 @@ interface ClientToServerEvents {
   endStream: (streamId: string) => void;
   joinStream: (streamId: string) => void;
   leaveStream: (streamId: string) => void;
-  streamPreview: (data: { streamId: string; preview: string }) => void;
   updateStreamLiveStatus: (data: { streamId: string; isLive: boolean }) => void;
 }
 
@@ -107,13 +105,6 @@ export class SocketService {
     return () => this.socket?.off('streamLiveStatusChanged', callback);
   }
 
-  updatePreview(streamId: string, preview: string): void {
-    if (!this.socket?.connected) {
-      throw new Error('Socket not connected');
-    }
-    this.socket.emit('streamPreview', { streamId, preview });
-  }
-
   onStreamStarted(callback: ServerToClientEvents['streamStarted']): () => void {
     if (!this.socket) return () => {};
     this.socket.on('streamStarted', callback);
@@ -136,12 +127,6 @@ export class SocketService {
     if (!this.socket) return () => {};
     this.socket.on('viewerLeft', callback);
     return () => this.socket?.off('viewerLeft', callback);
-  }
-
-  onPreview(callback: ServerToClientEvents['streamPreview']): () => void {
-    if (!this.socket) return () => {};
-    this.socket.on('streamPreview', callback);
-    return () => this.socket?.off('streamPreview', callback);
   }
 
   onRoleChanged(callback: ServerToClientEvents['roleChanged']): () => void {
