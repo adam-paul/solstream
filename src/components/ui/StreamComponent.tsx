@@ -154,15 +154,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     if (!videoRef.current || !stream) return;
   
     try {
-      // First ensure tracks are enabled
-      if (controls.videoEnabled) {
-        // await agoraService.toggleVideo(true);
-      }
-      if (controls.audioEnabled) {
-        // await agoraService.toggleAudio(true);
-      }
-  
-      // Then publish
+      // Publish tracks
       await agoraService.publishTracks();
       
       // Update state
@@ -174,7 +166,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     } catch (err) {
       handleMediaError('Failed to start stream', err);
     }
-  }, [stream, streamId, controls.videoEnabled, controls.audioEnabled, capturePreview, handleMediaError]);
+  }, [stream, streamId, capturePreview, handleMediaError]);
   
 
   // Handle stream end

@@ -38,11 +38,6 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     if (!videoRef.current) return;
   
     try {
-      // Wait for track to be actually ready
-      if (mediaType === 'video' && !user.videoTrack?.isPlaying) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-      
       await agoraService.handleUserPublished(videoRef.current, user, mediaType);
     } catch (err) {
       handleMediaError('Failed to load stream media', err);
@@ -54,11 +49,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     mountedRef.current = true;
   
     const initialize = async () => {
-      if (!videoRef.current || !stream.isLive) {
-        console.log('Initialize halted:', { 
-          hasVideoRef: !!videoRef.current, 
-          isLive: stream.isLive 
-        });
+      if (!videoRef.current) {
         setIsConnecting(false);
         return;
       }
@@ -102,7 +93,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       mountedRef.current = false;
       agoraService.cleanup().catch(console.error);
     };
-  }, [stream.id, stream.isLive, handleUserPublished, handleMediaError]);
+  }, [stream.id, handleUserPublished, handleMediaError]);
 
   // Check if user can view this stream
   if (isStreamHost(stream.id)) {
@@ -147,24 +138,24 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         />
         
         {/* Loading/Error/Waiting States */}
-        {(!stream.isLive || isConnecting || error) && (
+        {(isConnecting || error) && (
           <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-75">
             {error ? (
               <div className="text-center px-4">
                 <AlertCircle className="mx-auto mb-2 text-red-500" size={24} />
                 <p className="text-red-500 mb-4">{error}</p>
               </div>
+            ) : isConnecting ? (
+              <div className="text-center">
+                <Loader2 className="mx-auto mb-2 animate-spin" size={24} />
+                <p className="text-gray-400">Connecting to stream...</p>
+              </div>
             ) : !stream.isLive ? (
               <div className="text-center">
                 <Clock className="mx-auto mb-2" size={24} />
                 <p className="text-gray-400">Waiting for stream to start...</p>
               </div>
-            ) : (
-              <div className="text-center">
-                <Loader2 className="mx-auto mb-2 animate-spin" size={24} />
-                <p className="text-gray-400">Connecting to stream...</p>
-              </div>
-            )}
+            ) : null}
           </div>
         )}
       </div>
