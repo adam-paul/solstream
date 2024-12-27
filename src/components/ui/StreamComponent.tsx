@@ -156,10 +156,10 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     try {
       // First ensure tracks are enabled
       if (controls.videoEnabled) {
-        await agoraService.toggleVideo(true);
+        // await agoraService.toggleVideo(true);
       }
       if (controls.audioEnabled) {
-        await agoraService.toggleAudio(true);
+        // await agoraService.toggleAudio(true);
       }
   
       // Then publish
