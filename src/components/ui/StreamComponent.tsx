@@ -166,7 +166,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       await agoraService.publishTracks();
       
       // Update state
-      setStreamLiveStatus(streamId, true);
       socketService.updateStreamLiveStatus({ streamId, isLive: true });
   
       // Set up preview updates
@@ -175,7 +174,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     } catch (err) {
       handleMediaError('Failed to start stream', err);
     }
-  }, [stream, streamId, controls.videoEnabled, controls.audioEnabled, setStreamLiveStatus, capturePreview, handleMediaError]);
+  }, [stream, streamId, controls.videoEnabled, controls.audioEnabled, capturePreview, handleMediaError]);
   
 
   // Handle stream end
