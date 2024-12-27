@@ -78,7 +78,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     
     const initializeMedia = async () => {
       try {
-        await agoraService.cleanup();
         await agoraService.initializeClient({
           role: 'host',
           streamId
