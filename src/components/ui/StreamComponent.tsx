@@ -49,9 +49,14 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
   // Media initialization
   useEffect(() => {
-    if (!videoRef.current || !stream) return;
+    mountedRef.current = true;
     
     const initializeMedia = async () => {
+      if (!videoRef.current || !stream) {
+        setError('Missing required stream data');
+        return;
+      }
+
       try {
         await agoraService.initializeClient({
           role: 'host',
@@ -82,6 +87,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     initializeMedia();
 
     return () => {
+      mountedRef.current = false;
       agoraService.cleanup().catch(console.error);
     };
   }, [stream, streamId, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
@@ -134,7 +140,6 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
       handleMediaError('Failed to start stream', err);
     }
   }, [stream, streamId, handleMediaError]);
-  
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
