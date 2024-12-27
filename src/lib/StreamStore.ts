@@ -6,7 +6,7 @@ import { socketService } from './socketService';
 import { sessionManager } from './sessionManager';
 import { Stream } from '@/types/stream';
 
-type UserRole = 'host' | 'viewer' | null;
+type UserRole = 'host' | 'audience' | null;
 
 interface StreamState {
   streams: Map<string, Stream>;

@@ -63,7 +63,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         setError(null);
   
         const client = await agoraService.initializeClient({
-          role: 'viewer',
+          role: 'audience',
           streamId: stream.id
         });
   

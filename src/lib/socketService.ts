@@ -9,7 +9,7 @@ interface ServerToClientEvents {
   streamEnded: (streamId: string) => void;
   viewerJoined: (data: { streamId: string; count: number }) => void;
   viewerLeft: (data: { streamId: string; count: number }) => void;
-  roleChanged: (data: { streamId: string; role: 'host' | 'viewer' | null }) => void;
+  roleChanged: (data: { streamId: string; role: 'host' | 'audience' | null }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
   streamLiveStatusChanged: (data: { streamId: string; isLive: boolean }) => void;
 }

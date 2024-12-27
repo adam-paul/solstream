@@ -17,7 +17,7 @@ interface ServerToClientEvents {
   streamEnded: (streamId: StreamId) => void;
   viewerJoined: (data: { streamId: StreamId; count: ViewerCount }) => void;
   viewerLeft: (data: { streamId: StreamId; count: ViewerCount }) => void;
-  roleChanged: (data: { streamId: StreamId; role: 'host' | 'viewer' | null }) => void;
+  roleChanged: (data: { streamId: StreamId; role: 'host' | 'audience' | null }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
   streamLiveStatusChanged: (data: { streamId: StreamId; isLive: boolean }) => void;
 }
@@ -129,7 +129,7 @@ export class StreamServer {
           if (!stream) throw new Error('Stream not found');
           if (stream.creator === userId) throw new Error('Cannot join own stream');
 
-          await this.redisManager.updateStreamRole(streamId, userId, 'viewer');
+          await this.redisManager.updateStreamRole(streamId, userId, 'audience');
           socket.join(streamId);
 
           const roomSize = this.io.sockets.adapter.rooms.get(streamId)?.size || 0;
@@ -139,7 +139,7 @@ export class StreamServer {
           }));
 
           this.io.to(streamId).emit('viewerJoined', { streamId, count: roomSize });
-          socket.emit('roleChanged', { streamId, role: 'viewer' });
+          socket.emit('roleChanged', { streamId, role: 'audience' });
 
         } catch (error) {
           this.handleError(socket, error);

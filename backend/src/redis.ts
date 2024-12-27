@@ -5,7 +5,7 @@ import { Stream } from './types';
 
 interface StreamMetadata {
   lastUpdated: number;
-  roleMap: Record<string, 'host' | 'viewer'>;
+  roleMap: Record<string, 'host' | 'audience'>;
 }
 
 class RedisManager {
@@ -94,7 +94,7 @@ class RedisManager {
   async updateStreamRole(
     streamId: string,
     userId: string,
-    role: 'host' | 'viewer' | null
+    role: 'host' | 'audience' | null
   ): Promise<void> {
     await this.execCommand(async () => {
       const metadata = await this.redis.hget(this.STREAM_METADATA_KEY, streamId);
