@@ -35,11 +35,22 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     user: IAgoraRTCRemoteUser,
     mediaType: 'audio' | 'video'
   ) => {
-    if (!videoRef.current) return;
+    console.log('User published event:', { 
+      mediaType, 
+      hasTrack: !!user[`${mediaType}Track`],
+      userId: user.uid
+    });
+  
+    if (!videoRef.current) {
+      console.log('No video container available');
+      return;
+    }
     
     try {
       await agoraService.handleUserPublished(videoRef.current, user, mediaType);
+      console.log('Successfully handled published media:', mediaType);
     } catch (err) {
+      console.error('Failed to handle published media:', err);
       handleMediaError('Failed to load stream media', err);
     }
   }, [handleMediaError]);
@@ -47,38 +58,53 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   // Initialize stream connection
   useEffect(() => {
     mountedRef.current = true;
-
+  
     const initialize = async () => {
       if (!videoRef.current || !stream.isLive) {
-        setIsConnecting(false); // Don't show connecting if not live
+        console.log('Initialize halted:', { 
+          hasVideoRef: !!videoRef.current, 
+          isLive: stream.isLive 
+        });
+        setIsConnecting(false);
         return;
       }
-
+  
       try {
+        console.log('Starting viewer initialization:', { 
+          streamId: stream.id, 
+          isLive: stream.isLive 
+        });
         setIsConnecting(true);
         setError(null);
-
+  
         const client = await agoraService.initializeClient({
           role: 'audience',
           streamId: stream.id
         });
-
+  
+        console.log('Client initialized:', { 
+          connectionState: client.connectionState,
+          role: client.role
+        });
+  
         client.on('user-published', handleUserPublished);
         
         if (mountedRef.current) {
           setIsConnecting(false);
         }
       } catch (err) {
+        console.error('Viewer initialization failed:', err);
         if (mountedRef.current) {
           handleMediaError('Failed to connect to stream', err);
           setIsConnecting(false);
         }
       }
     };
-
+  
     initialize();
-
+  
     return () => {
+      console.log('Cleaning up viewer connection');
       mountedRef.current = false;
       agoraService.cleanup().catch(console.error);
     };

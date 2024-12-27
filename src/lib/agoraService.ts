@@ -139,14 +139,32 @@ export class AgoraService implements IAgoraService {
     user: IAgoraRTCRemoteUser, 
     mediaType: 'audio' | 'video'
   ): Promise<void> {
-    if (!this.client) throw new Error('Client not initialized');
-
+    if (!this.client) {
+      console.error('Client not initialized for subscription');
+      throw new Error('Client not initialized');
+    }
+  
+    console.log('Attempting to subscribe:', { 
+      mediaType,
+      userId: user.uid,
+      connectionState: this.client.connectionState,
+    });
+  
     await this.client.subscribe(user, mediaType);
+    console.log('Subscribed to:', mediaType);
     
     if (mediaType === 'video' && user.videoTrack) {
       user.videoTrack.play(container);
+      console.log('Video track playing');
     } else if (mediaType === 'audio' && user.audioTrack) {
       user.audioTrack.play();
+      console.log('Audio track playing');
+    } else {
+      console.log('No track available after subscription:', {
+        mediaType,
+        hasVideoTrack: !!user.videoTrack,
+        hasAudioTrack: !!user.audioTrack
+      });
     }
   }
 
