@@ -154,23 +154,29 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
     if (!videoRef.current || !stream) return;
   
     try {
-      // First publish tracks and wait for confirmation
+      // First ensure tracks are enabled
+      if (controls.videoEnabled) {
+        await agoraService.toggleVideo(true);
+      }
+      if (controls.audioEnabled) {
+        await agoraService.toggleAudio(true);
+      }
+  
+      // Then publish
       await agoraService.publishTracks();
       
-      // Small delay to ensure tracks are fully ready
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Then update live status
+      // Update state
       setStreamLiveStatus(streamId, true);
       socketService.updateStreamLiveStatus({ streamId, isLive: true });
   
-      // Set up preview updates last
+      // Set up preview updates
       const previewInterval = setInterval(capturePreview, 300000);
       previewIntervalRef.current = previewInterval;
     } catch (err) {
       handleMediaError('Failed to start stream', err);
     }
-  }, [stream, streamId, setStreamLiveStatus, capturePreview, handleMediaError]);
+  }, [stream, streamId, controls.videoEnabled, controls.audioEnabled, setStreamLiveStatus, capturePreview, handleMediaError]);
+  
 
   // Handle stream end
   const handleEndStream = useCallback(async () => {
