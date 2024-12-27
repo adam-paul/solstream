@@ -3,7 +3,6 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
-import cors from 'cors';
 import dotenv from 'dotenv';
 import { RedisManager } from './redis';
 import { Stream } from './types';

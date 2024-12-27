@@ -17,7 +17,7 @@ export type {
 
 // Stream Configuration
 export interface StreamConfig {
-  role: 'host' | 'audience';
+  role: 'host' | 'viewer';
   streamId: string;
   token?: string;
   uid?: number;
