@@ -100,7 +100,7 @@ export class AgoraService implements IAgoraService {
         ANS: true,
         AGC: true
       });
-  
+
       const videoTrack = await AgoraRTC.createCameraVideoTrack({
         cameraId: deviceConfig?.cameraId || undefined,
         encoderConfig: {
@@ -112,32 +112,38 @@ export class AgoraService implements IAgoraService {
         }
       });
 
-      // Explicitly enable tracks after creation
-      if (audioTrack) await audioTrack.setEnabled(true);
-      if (videoTrack) await videoTrack.setEnabled(true);
-  
+      // Ensure tracks are enabled before storing them
+      await audioTrack.setEnabled(true);
+      await videoTrack.setEnabled(true);
+
       this.localTracks = { audioTrack, videoTrack };
       return this.localTracks;
     } catch (error) {
       console.error('Failed to initialize tracks:', error);
-      throw error; 
+      throw new Error('Failed to initialize media tracks');
     }
   }
 
   async publishTracks(): Promise<void> {
-    if (!this.client) throw new Error('Client not initialized');
-
-    const tracks = Object.values(this.localTracks).filter(track => track !== null);
-    if (tracks.length > 0) {
-      await this.client.publish(tracks);
+    if (!this.client) {
+      throw new Error('Client not initialized');
     }
+    
+    const tracks = Object.values(this.localTracks).filter(track => track !== null);
+    if (tracks.length === 0) {
+      throw new Error('No tracks available to publish');
+    }
+
+    await this.client.publish(tracks);
+    console.log('Published tracks:', {
+      audioTrack: !!this.localTracks.audioTrack,
+      videoTrack: !!this.localTracks.videoTrack
+    });
   }
 
   playVideo(container: HTMLElement): void {
-    // Store reference to container
     this.videoContainer = container;
     
-    // Play video if track exists
     if (this.localTracks.videoTrack) {
       this.localTracks.videoTrack.play(container);
     }
@@ -208,6 +214,7 @@ export class AgoraService implements IAgoraService {
     await this.localTracks.videoTrack.close();
     
     this.localTracks.videoTrack = newTrack;
+    await newTrack.setEnabled(true);
     
     if (this.client) {
       await this.client.publish(newTrack);
@@ -238,6 +245,7 @@ export class AgoraService implements IAgoraService {
     await this.localTracks.audioTrack.close();
     
     this.localTracks.audioTrack = newTrack;
+    await newTrack.setEnabled(true);
     
     if (this.client) {
       await this.client.publish(newTrack);
