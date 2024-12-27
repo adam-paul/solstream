@@ -111,6 +111,10 @@ export class AgoraService implements IAgoraService {
           bitrateMax: 1500
         }
       });
+
+      // Explicitly enable tracks after creation
+      if (audioTrack) await audioTrack.setEnabled(true);
+      if (videoTrack) await videoTrack.setEnabled(true);
   
       this.localTracks = { audioTrack, videoTrack };
       return this.localTracks;
