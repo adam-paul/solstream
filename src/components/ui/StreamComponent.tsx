@@ -3,6 +3,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { agoraService } from '@/lib/agoraService';
+import { useStreamStore } from '@/lib/StreamStore';
 
 interface StreamComponentProps {
   streamId: string;
@@ -34,6 +35,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
   const handleEndStream = () => {
     agoraService.stopBroadcast();
+    useStreamStore.getState().endStream(streamId);
     router.push('/');
   };
 
