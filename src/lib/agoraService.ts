@@ -57,13 +57,6 @@ export class AgoraService implements IAgoraService {
       timestamp: Date.now()
     });
 
-    await this.client.join(
-      this.appId,
-      config.streamId,
-      tokenData.token,
-      tokenData.uid
-    );
-
     // Store container and set up event handlers immediately
     if (config.role === 'audience' && config.container) {
       this.videoContainer = config.container;
@@ -111,6 +104,13 @@ export class AgoraService implements IAgoraService {
         hasContainer: !!config.container
       });
     }
+
+    await this.client.join(
+      this.appId,
+      config.streamId,
+      tokenData.token,
+      tokenData.uid
+    );
     
     return this.client;
   }

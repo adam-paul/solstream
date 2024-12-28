@@ -131,6 +131,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   
     try {
       // Publish tracks
+      console.log('Starting to publish tracks');
       await agoraService.publishTracks();
       
       // Update state
