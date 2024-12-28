@@ -41,36 +41,14 @@ export class AgoraService implements IAgoraService {
       codec: "vp8"
     });
 
-    // Store container reference for audience role
+    // Store container and set up event handlers immediately
     if (config.role === 'audience' && config.container) {
       this.videoContainer = config.container;
-    }
+      console.log('Setting up viewer with:', {
+        hasContainer: !!this.videoContainer,
+        role: config.role
+      });
 
-    await this.client.setClientRole(config.role === 'host' ? 'host' : 'audience');
-
-    const tokenData = config.token ? 
-      { token: config.token, uid: config.uid } : 
-      await this.fetchToken(config.streamId, config.role === 'host');
-    
-    console.log('Joining with token:', {
-      appId: this.appId.slice(0,5) + '...',
-      hasToken: !!tokenData.token,
-      role: config.role,
-      tokenPrefix: tokenData.token.substring(0, 32),
-      uid: tokenData.uid,
-      connectionState: this.client?.connectionState,
-      timestamp: Date.now()
-    });
-
-    await this.client.join(
-      this.appId,
-      config.streamId,
-      tokenData.token,
-      tokenData.uid
-    );
-
-    // Add event listeners for audience role
-    if (config.role === 'audience' && this.videoContainer) {
       this.client.on('user-published', async (user, mediaType) => {
         console.log('User published event:', {
           userId: user.uid,
@@ -105,13 +83,34 @@ export class AgoraService implements IAgoraService {
         }
       });
     } else {
-      console.log('Skipping user-published event listener:', {
+      console.log('Setting up host:', {
         role: config.role,
-        hasContainer: !!this.videoContainer,
-        expectedRole: 'audience',
-        needsContainer: true
+        hasContainer: !!config.container
       });
     }
+
+    await this.client.setClientRole(config.role === 'host' ? 'host' : 'audience');
+
+    const tokenData = config.token ? 
+      { token: config.token, uid: config.uid } : 
+      await this.fetchToken(config.streamId, config.role === 'host');
+    
+    console.log('Joining with token:', {
+      appId: this.appId.slice(0,5) + '...',
+      hasToken: !!tokenData.token,
+      role: config.role,
+      tokenPrefix: tokenData.token.substring(0, 32),
+      uid: tokenData.uid,
+      connectionState: this.client?.connectionState || 'NO_CLIENT',
+      timestamp: Date.now()
+    });
+
+    await this.client.join(
+      this.appId,
+      config.streamId,
+      tokenData.token,
+      tokenData.uid
+    );
     
     return this.client;
   }
