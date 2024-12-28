@@ -21,6 +21,7 @@ export class AgoraService implements IAgoraService {
   
   constructor() {
     this.appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || '';
+    this.videoContainer = null;
     if (!this.appId) {
       throw new Error('Agora App ID not configured');
     }
@@ -102,6 +103,13 @@ export class AgoraService implements IAgoraService {
           console.error('Failed to handle published media:', error);
           throw error;
         }
+      });
+    } else {
+      console.log('Skipping user-published event listener:', {
+        role: config.role,
+        hasContainer: !!this.videoContainer,
+        expectedRole: 'audience',
+        needsContainer: true
       });
     }
     

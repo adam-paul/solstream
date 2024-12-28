@@ -40,6 +40,12 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
           streamId: stream.id, 
           isLive: stream.isLive 
         });
+
+        console.log('StreamViewer container ref:', {
+          hasContainer: !!videoRef.current,
+          containerElement: videoRef.current
+        });
+
         setIsConnecting(true);
         setError(null);
   
