@@ -16,16 +16,25 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
 
   useEffect(() => {
     let isMounted = true;
+    const containerRef = videoRef.current; // Store ref value
 
     const initViewer = async () => {
-      if (!videoRef.current || !stream.isLive) return;
+      if (!containerRef) {
+        setError('Video container not initialized');
+        return;
+      }
+
+      if (!stream.isLive) {
+        setError('Stream is not live');
+        return;
+      }
 
       try {
         // Join the stream
         await agoraService.setupStream({
           streamId: stream.id,
           role: 'audience',
-          container: videoRef.current
+          container: containerRef
         });
 
         // Notify backend about viewer joining
@@ -44,6 +53,12 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       isMounted = false;
       if (stream.id) {
         socketService.leaveStream(stream.id);
+      }
+      if (containerRef) {
+        // Clear video container before cleanup
+        while (containerRef.firstChild) {
+          containerRef.removeChild(containerRef.firstChild);
+        }
       }
       agoraService.cleanup().catch(console.error);
     };

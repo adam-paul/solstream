@@ -27,15 +27,19 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   // Initialize stream
   useEffect(() => {
     let isMounted = true;
+    const containerRef = videoRef.current; // Store ref value
 
     const initStream = async () => {
-      if (!videoRef.current || !stream) return;
+      if (!containerRef || !stream) {
+        setError('Missing stream configuration');
+        return;
+      }
 
       try {
         await agoraService.setupStream({
           streamId,
           role: 'host',
-          container: videoRef.current
+          container: containerRef
         });
 
         if (!isMounted) return;
@@ -53,6 +57,12 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
 
     return () => {
       isMounted = false;
+      if (containerRef) {
+        // Clear video container before cleanup
+        while (containerRef.firstChild) {
+          containerRef.removeChild(containerRef.firstChild);
+        }
+      }
       agoraService.cleanup().catch(console.error);
     };
   }, [stream, streamId]);
