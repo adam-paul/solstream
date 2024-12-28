@@ -5,9 +5,10 @@ import { agoraService } from '@/lib/agoraService';
 
 interface StreamViewerProps {
   streamId: string;
+  title: string;
 }
 
-const StreamViewer: React.FC<StreamViewerProps> = ({ streamId }) => {
+const StreamViewer: React.FC<StreamViewerProps> = ({ streamId, title }) => {
   const videoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -31,7 +32,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ streamId }) => {
   return (
     <div className="w-full bg-gray-800 rounded-lg overflow-hidden">
       <div className="p-4 border-b border-gray-700">
-        <h2 className="text-xl font-bold text-white">Live Stream</h2>
+        <h2 className="text-xl font-bold text-white">{title}</h2>
       </div>
 
       <div

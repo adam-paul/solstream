@@ -44,7 +44,7 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
         <div className="w-full max-w-5xl mx-auto">
           <StreamContainer 
             stream={stream} 
-            isHost={isStreamHost(stream.id)} // Add this line
+            isHost={isStreamHost(stream.id)}
           />
         </div>
       </div>

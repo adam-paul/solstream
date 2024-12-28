@@ -7,9 +7,10 @@ import { useStreamStore } from '@/lib/StreamStore';
 
 interface StreamComponentProps {
   streamId: string;
+  title: string;
 }
 
-const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
+const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -42,7 +43,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   return (
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-yellow-400">Live Stream</h2>
+        <h2 className="text-2xl font-bold text-yellow-400">{title}</h2>
         <button 
           onClick={handleEndStream}
           className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
