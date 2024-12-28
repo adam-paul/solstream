@@ -41,6 +41,29 @@ export class AgoraService implements IAgoraService {
       codec: "vp8"
     });
 
+    await this.client.setClientRole(config.role === 'host' ? 'host' : 'audience');
+
+    const tokenData = config.token ? 
+      { token: config.token, uid: config.uid } : 
+      await this.fetchToken(config.streamId, config.role === 'host');
+    
+    console.log('Joining with token:', {
+      appId: this.appId.slice(0,5) + '...',
+      hasToken: !!tokenData.token,
+      role: config.role,
+      tokenPrefix: tokenData.token.substring(0, 32),
+      uid: tokenData.uid,
+      connectionState: this.client?.connectionState || 'NO_CLIENT',
+      timestamp: Date.now()
+    });
+
+    await this.client.join(
+      this.appId,
+      config.streamId,
+      tokenData.token,
+      tokenData.uid
+    );
+
     // Store container and set up event handlers immediately
     if (config.role === 'audience' && config.container) {
       this.videoContainer = config.container;
@@ -88,29 +111,6 @@ export class AgoraService implements IAgoraService {
         hasContainer: !!config.container
       });
     }
-
-    await this.client.setClientRole(config.role === 'host' ? 'host' : 'audience');
-
-    const tokenData = config.token ? 
-      { token: config.token, uid: config.uid } : 
-      await this.fetchToken(config.streamId, config.role === 'host');
-    
-    console.log('Joining with token:', {
-      appId: this.appId.slice(0,5) + '...',
-      hasToken: !!tokenData.token,
-      role: config.role,
-      tokenPrefix: tokenData.token.substring(0, 32),
-      uid: tokenData.uid,
-      connectionState: this.client?.connectionState || 'NO_CLIENT',
-      timestamp: Date.now()
-    });
-
-    await this.client.join(
-      this.appId,
-      config.streamId,
-      tokenData.token,
-      tokenData.uid
-    );
     
     return this.client;
   }
