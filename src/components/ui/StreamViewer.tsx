@@ -38,6 +38,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
     if (!videoRef.current) return;
 
     try {
+      console.log('Handling user published media:', { user, mediaType });
       await agoraService.handleUserPublished(videoRef.current, user, mediaType);
     } catch (err) {
       handleMediaError('Failed to handle published media', err);
