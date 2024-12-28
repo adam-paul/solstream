@@ -23,9 +23,6 @@ export class AgoraService {
     container?: HTMLElement;
   }) {
     try {
-      // Clean up existing client/tracks
-      await this.cleanup();
-
       // Initialize client
       this.client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
       await this.client.setClientRole(config.role);
