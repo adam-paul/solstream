@@ -1,12 +1,8 @@
-// src/components/ui/StreamComponent.tsx
 'use client'
 
-import React, { useRef, useEffect, useState } from 'react';
-import { Mic, Video, VideoOff, MicOff } from 'lucide-react';
-import { agoraService } from '@/lib/agoraService';
-import { useStreamStore } from '@/lib/StreamStore';
-import { socketService } from '@/lib/socketService';
+import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { agoraService } from '@/lib/agoraService';
 
 interface StreamComponentProps {
   streamId: string;
@@ -15,111 +11,36 @@ interface StreamComponentProps {
 const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
   const videoRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  
-  // Minimal state
-  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const { getStream, endStream, setStreamLiveStatus } = useStreamStore();
-  const stream = getStream(streamId);
-
-  // Initialize stream
+  // Start stream when component mounts
   useEffect(() => {
-    let isMounted = true;
-    const containerRef = videoRef.current; // Store ref value
+    if (!videoRef.current) return;
 
-    const initStream = async () => {
-      if (!containerRef || !stream) {
-        setError('Missing stream configuration');
-        return;
-      }
-
+    const startStream = async () => {
       try {
-        await agoraService.setupStream({
-          streamId,
-          role: 'host',
-          container: containerRef
-        });
-
-        if (!isMounted) return;
-        
-        // Start live immediately after setup
-        socketService.updateStreamLiveStatus({ streamId, isLive: true });
+        await agoraService.startBroadcast(streamId, videoRef.current!);
       } catch (err) {
-        if (!isMounted) return;
-        setError(err instanceof Error ? err.message : 'Failed to initialize stream');
-        setTimeout(() => setError(null), 5000);
+        console.error('Failed to start stream:', err);
       }
     };
 
-    initStream();
+    startStream();
 
+    // Stop stream when component unmounts
     return () => {
-      isMounted = false;
-      if (containerRef) {
-        // Clear video container before cleanup
-        while (containerRef.firstChild) {
-          containerRef.removeChild(containerRef.firstChild);
-        }
-      }
-      agoraService.cleanup().catch(console.error);
+      agoraService.stopBroadcast();
     };
-  }, [stream, streamId]);
+  }, [streamId]);
 
-  // Simple media controls
-  const toggleVideo = async () => {
-    try {
-      await agoraService.toggleVideo(!isVideoEnabled);
-      setIsVideoEnabled(!isVideoEnabled);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to toggle video';
-      setError(message);
-      setTimeout(() => setError(null), 5000);
-    }
+  const handleEndStream = () => {
+    agoraService.stopBroadcast();
+    router.push('/');
   };
-
-  const toggleAudio = async () => {
-    try {
-      await agoraService.toggleAudio(!isAudioEnabled);
-      setIsAudioEnabled(!isAudioEnabled);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to toggle audio';
-      setError(message);
-      setTimeout(() => setError(null), 5000);
-    }
-  };
-
-  // End stream
-  const handleEndStream = async () => {
-    try {
-      if (stream?.isLive) {
-        setStreamLiveStatus(streamId, false);
-        socketService.updateStreamLiveStatus({ streamId, isLive: false });
-      }
-      
-      await agoraService.cleanup();
-      endStream(streamId);
-      router.push('/');
-    } catch (error) {
-      console.error('Error ending stream:', error);
-      router.push('/');
-    }
-  };
-
-  if (!stream) return null;
 
   return (
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
-      {/* Stream Header */}
       <div className="flex justify-between items-center mb-4">
-        <div>
-          <h2 className="text-2xl font-bold text-yellow-400">
-            {stream.isLive ? 'Live: ' : 'Preview: '}{stream.title}
-          </h2>
-          {stream.ticker && <p className="text-gray-400">${stream.ticker}</p>}
-        </div>
-        
+        <h2 className="text-2xl font-bold text-yellow-400">Live Stream</h2>
         <button 
           onClick={handleEndStream}
           className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
@@ -128,53 +49,10 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
         </button>
       </div>
 
-      {/* Error Display */}
-      {error && (
-        <div className="text-red-500 p-4 bg-gray-900 rounded-lg mb-4">
-          {error}
-        </div>
-      )}
-
-      {/* Video Container */}
-      <div className="relative">
-        <div 
-          ref={videoRef}
-          className="w-full aspect-video bg-gray-900 rounded-lg"
-        />
-
-        {/* Stream Controls */}
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-4">
-          <button
-            onClick={toggleVideo}
-            className={`p-2 rounded-full ${
-              isVideoEnabled ? 'bg-blue-500' : 'bg-red-500'
-            }`}
-          >
-            {isVideoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
-          </button>
-
-          <button
-            onClick={toggleAudio}
-            className={`p-2 rounded-full ${
-              isAudioEnabled ? 'bg-blue-500' : 'bg-red-500'
-            }`}
-          >
-            {isAudioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
-          </button>
-        </div>
-      </div>
-
-      {/* Viewer Count */}
-      {stream.isLive && stream.viewers > 0 && (
-        <div className="mt-4 text-sm text-gray-400">
-          {stream.viewers} viewer{stream.viewers !== 1 ? 's' : ''} watching
-        </div>
-      )}
-
-      {/* Stream Description */}
-      {stream.description && (
-        <p className="mt-4 text-gray-300">{stream.description}</p>
-      )}
+      <div 
+        ref={videoRef} 
+        className="w-full aspect-video bg-gray-900 rounded-lg"
+      />
     </div>
   );
 };
