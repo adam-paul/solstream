@@ -1,322 +1,146 @@
 // src/lib/agoraService.ts
 
-import type { 
-  IAgoraRTCClient, 
-  StreamConfig, 
-  MediaDevices, 
-  DeviceConfig, 
-  LocalTracks,
-  IAgoraService
-} from '@/types/agora';
+import type { IAgoraRTCClient, ICameraVideoTrack, IMicrophoneAudioTrack } from 'agora-rtc-sdk-ng';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 
-export class AgoraService implements IAgoraService {
+export class AgoraService {
   private client: IAgoraRTCClient | null = null;
-  private localTracks: LocalTracks = {
-    audioTrack: null,
-    videoTrack: null
+  private tracks: {
+    audio: IMicrophoneAudioTrack | null;
+    video: ICameraVideoTrack | null;
+  } = {
+    audio: null,
+    video: null
   };
-  private videoContainer: HTMLElement | null = null;
-  private readonly appId: string;
-  
-  constructor() {
-    this.appId = process.env.NEXT_PUBLIC_AGORA_APP_ID || '';
-    this.videoContainer = null;
-    if (!this.appId) {
-      throw new Error('Agora App ID not configured');
-    }
+
+  constructor(private readonly appId: string = process.env.NEXT_PUBLIC_AGORA_APP_ID || '') {
+    if (!this.appId) throw new Error('Agora App ID not configured');
   }
 
-  async initializeClient(config: StreamConfig & { container?: HTMLElement }): Promise<IAgoraRTCClient> {
-    await this.cleanup();
-
-    console.log('Initializing Agora client:', { 
-      role: config.role,
-      streamId: config.streamId,
-      hasToken: !!config.token
-    });
-
-    this.client = AgoraRTC.createClient({
-      mode: "live",
-      codec: "vp8"
-    });
-
-    await this.client.setClientRole(config.role === 'host' ? 'host' : 'audience');
-
-    const tokenData = config.token ? 
-      { token: config.token, uid: config.uid } : 
-      await this.fetchToken(config.streamId, config.role === 'host');
-    
-    console.log('Joining with token:', {
-      appId: this.appId.slice(0,5) + '...',
-      hasToken: !!tokenData.token,
-      role: config.role,
-      tokenPrefix: tokenData.token.substring(0, 32),
-      uid: tokenData.uid,
-      connectionState: this.client?.connectionState || 'NO_CLIENT',
-      timestamp: Date.now()
-    });
-
-    // Store container and set up event handlers immediately
-    if (config.role === 'audience' && config.container) {
-      this.videoContainer = config.container;
-      console.log('Setting up viewer with:', {
-        hasContainer: !!this.videoContainer,
-        role: config.role
-      });
-
-      // Clear any existing handlers
-      this.client.removeAllListeners('user-published');
-      
-      // Set up event handler before joining
-      this.client.on('user-published', async (user, mediaType) => {
-        console.log('User published event:', {
-          userId: user.uid,
-          mediaType,
-          hasAudioTrack: !!user.audioTrack,
-          hasVideoTrack: !!user.videoTrack,
-          clientState: this.client?.connectionState
-        });
-    
-        try {
-          if (!this.client) {
-            throw new Error('Client not initialized');
-          }
-    
-          await this.client.subscribe(user, mediaType);
-          
-          console.log('Post-subscribe state:', {
-            mediaType,
-            hasTrack: mediaType === 'video' ? !!user.videoTrack : !!user.audioTrack
-          });
-    
-          if (mediaType === 'video' && user.videoTrack && this.videoContainer) {
-            user.videoTrack.play(this.videoContainer);
-            console.log('Video track played');
-          } else if (mediaType === 'audio' && user.audioTrack) {
-            user.audioTrack.play();
-            console.log('Audio track played');
-          }
-        } catch (error) {
-          console.error('Failed to handle published media:', error);
-          throw error;
-        }
-      });
-    } else {
-      console.log('Setting up host:', {
-        role: config.role,
-        hasContainer: !!config.container
-      });
-    }
-
-    await this.client.join(
-      this.appId,
-      config.streamId,
-      tokenData.token,
-      tokenData.uid
-    );
-    
-    return this.client;
-  }
-
-  private async fetchToken(channel: string, isHost: boolean = false): Promise<{token: string, uid: number}> {
-    console.log('Fetching token:', { channel, isHost });
-    const response = await fetch(`/api/agora-token?channel=${channel}&isHost=${isHost}`);
-    
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Token fetch failed:', error);
-      throw new Error('Failed to fetch token');
-    }
-    
-    const data = await response.json();
-    console.log('Token response:', { 
-      hasToken: !!data.token,
-      uid: data.uid,
-      appId: data.appId?.slice(0,5) + '...',
-      channel: data.channelName,
-      role: data.role,
-      expires: new Date(data.expires * 1000).toISOString()
-    });
-    
-    return {
-      token: data.token,
-      uid: data.uid
-    };
-  }
-
-  async initializeHostTracks(deviceConfig?: DeviceConfig): Promise<LocalTracks> {
+  async setupStream(config: {
+    streamId: string;
+    role: 'host' | 'audience';
+    container?: HTMLElement;
+  }) {
     try {
-      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-        microphoneId: deviceConfig?.microphoneId || undefined,
-        AEC: true,
-        ANS: true,
-        AGC: true
-      });
+      // Clean up existing client/tracks
+      await this.cleanup();
 
-      const videoTrack = await AgoraRTC.createCameraVideoTrack({
-        cameraId: deviceConfig?.cameraId || undefined,
-        encoderConfig: {
-          width: { min: 640, ideal: 1280, max: 1920 },
-          height: { min: 480, ideal: 720, max: 1080 },
-          frameRate: 30,
-          bitrateMin: 600,
-          bitrateMax: 1500
-        }
-      });
+      // Initialize client
+      this.client = AgoraRTC.createClient({ mode: "live", codec: "vp8" });
+      await this.client.setClientRole(config.role);
 
-      await audioTrack.setEnabled(true);
-      await videoTrack.setEnabled(true);
+      // Get token
+      const { token, uid } = await this.fetchToken(config.streamId, config.role === 'host');
 
-      this.localTracks = { audioTrack, videoTrack };
-      return this.localTracks;
+      // Join channel
+      await this.client.join(this.appId, config.streamId, token, uid);
+
+      // Set up tracks for host
+      if (config.role === 'host') {
+        await this.initHostTracks();
+        const tracksToPublish = Object.values(this.tracks).filter((track): track is ICameraVideoTrack | IMicrophoneAudioTrack => track !== null);
+      if (tracksToPublish.length > 0) {
+        await this.client.publish(tracksToPublish);
+      }
+      }
+
+      // Set up viewer container and handlers
+      if (config.role === 'audience' && config.container) {
+        this.setupViewerHandlers(config.container);
+      }
+
+      return this.client;
     } catch (error) {
-      console.error('Failed to initialize tracks:', error);
-      throw new Error('Failed to initialize media tracks');
+      console.error('Stream setup failed:', error);
+      await this.cleanup();
+      throw error;
     }
   }
 
-  async publishTracks(): Promise<void> {
-    if (!this.client) {
-      throw new Error('Client not initialized');
-    }
-    
-    const tracks = Object.values(this.localTracks).filter(track => track !== null);
-    if (tracks.length === 0) {
-      throw new Error('No tracks available to publish');
-    }
+  private async initHostTracks() {
+    try {
+      // Create tracks with optimal settings
+      const [audio, video] = await Promise.all([
+        AgoraRTC.createMicrophoneAudioTrack({
+          AEC: true,
+          ANS: true,
+          AGC: true
+        }),
+        AgoraRTC.createCameraVideoTrack({
+          encoderConfig: {
+            width: { min: 640, ideal: 1280, max: 1920 },
+            height: { min: 480, ideal: 720, max: 1080 },
+            frameRate: 30
+          }
+        })
+      ]);
 
-    await this.client.publish(tracks);
-    console.log('Published tracks:', {
-      audioTrack: !!this.localTracks.audioTrack,
-      videoTrack: !!this.localTracks.videoTrack,
-      clientState: this.client.connectionState,
-    });
+      this.tracks = { audio, video };
+      
+      // Play video in container if provided
+      if (this.tracks.video) {
+        this.tracks.video.play(document.createElement('div'));
+      }
+    } catch (error) {
+      console.error('Failed to initialize host tracks:', error);
+      throw error;
+    }
   }
 
-  playVideo(container: HTMLElement): void {
-    this.videoContainer = container;
-    
-    if (this.localTracks.videoTrack) {
-      this.localTracks.videoTrack.play(container);
-    }
-  }
+  private setupViewerHandlers(container: HTMLElement) {
+    if (!this.client) return;
 
-  async getDevices(): Promise<MediaDevices> {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    
-    return {
-      cameras: devices.filter(device => device.kind === 'videoinput'),
-      microphones: devices.filter(device => device.kind === 'audioinput')
-    };
-  }
+    this.client.on('user-published', async (user, mediaType) => {
+      try {
+        await this.client?.subscribe(user, mediaType);
 
-  async switchCamera(deviceId: string): Promise<void> {
-    if (!this.localTracks.videoTrack) {
-      throw new Error('Video track not initialized');
-    }
-
-    const newTrack = await AgoraRTC.createCameraVideoTrack({
-      cameraId: deviceId,
-      encoderConfig: {
-        width: 1280,
-        height: 720,
-        frameRate: 30
+        if (mediaType === 'video' && user.videoTrack) {
+          user.videoTrack.play(container);
+        }
+        if (mediaType === 'audio' && user.audioTrack) {
+          user.audioTrack.play();
+        }
+      } catch (error) {
+        console.error('Failed to handle published media:', error);
       }
     });
-
-    if (this.client) {
-      await this.client.unpublish(this.localTracks.videoTrack);
-    }
-    
-    this.localTracks.videoTrack.stop();
-    await this.localTracks.videoTrack.close();
-    
-    this.localTracks.videoTrack = newTrack;
-    await newTrack.setEnabled(true);
-    
-    if (this.client) {
-      await this.client.publish(newTrack);
-    }
-
-    if (this.videoContainer) {
-      this.playVideo(this.videoContainer);
-    }
   }
 
-  async switchMicrophone(deviceId: string): Promise<void> {
-    if (!this.localTracks.audioTrack) {
-      throw new Error('Audio track not initialized');
-    }
-
-    const newTrack = await AgoraRTC.createMicrophoneAudioTrack({
-      microphoneId: deviceId,
-      AEC: true,
-      ANS: true,
-      AGC: true
-    });
-
-    if (this.client) {
-      await this.client.unpublish(this.localTracks.audioTrack);
-    }
-    
-    this.localTracks.audioTrack.stop();
-    await this.localTracks.audioTrack.close();
-    
-    this.localTracks.audioTrack = newTrack;
-    await newTrack.setEnabled(true);
-    
-    if (this.client) {
-      await this.client.publish(newTrack);
-    }
-  }
-
-  async toggleVideo(enabled: boolean): Promise<void> {
-    if (this.localTracks.videoTrack) {
-      await this.localTracks.videoTrack.setEnabled(enabled);
-    }
-  }
-
-  async toggleAudio(enabled: boolean): Promise<void> {
-    if (this.localTracks.audioTrack) {
-      await this.localTracks.audioTrack.setEnabled(enabled);
-    }
+  private async fetchToken(channel: string, isHost: boolean): Promise<{ token: string; uid: number }> {
+    const response = await fetch(`/api/agora-token?channel=${channel}&isHost=${isHost}`);
+    if (!response.ok) throw new Error('Failed to fetch token');
+    return response.json();
   }
 
   async cleanup(): Promise<void> {
-    try {
-      // Clean DOM first to prevent memory leaks
-      if (this.videoContainer) {
-        while (this.videoContainer.firstChild) {
-          this.videoContainer.removeChild(this.videoContainer.firstChild);
-        }
-        this.videoContainer = null;
+    // Stop and close tracks
+    for (const track of Object.values(this.tracks)) {
+      if (track) {
+        track.stop();
+        await track.close();
       }
+    }
+    this.tracks = { audio: null, video: null };
 
-      // Cleanup tracks in parallel for faster execution
-      const trackCleanup = Object.values(this.localTracks)
-        .filter(track => track !== null)
-        .map(async track => {
-          track?.stop();
-          await track?.close();
-        });
-      
-      await Promise.all(trackCleanup);
-      this.localTracks = { audioTrack: null, videoTrack: null };
+    // Leave and clean up client
+    if (this.client?.connectionState === 'CONNECTED') {
+      this.client.removeAllListeners();
+      await this.client.leave();
+    }
+    this.client = null;
+  }
 
-      // Cleanup client last
-      if (this.client?.connectionState === 'CONNECTED' || 
-          this.client?.connectionState === 'CONNECTING') {
-        this.client.removeAllListeners();
-        await this.client.leave();
-      }
-      this.client = null;
-    } catch (error) {
-      console.error('Error during cleanup:', error);
-      // Reset state even if cleanup fails
-      this.localTracks = { audioTrack: null, videoTrack: null };
-      this.client = null;
-      this.videoContainer = null;
+  // Simple media controls
+  async toggleAudio(enabled: boolean) {
+    if (this.tracks.audio) {
+      await this.tracks.audio.setEnabled(enabled);
+    }
+  }
+
+  async toggleVideo(enabled: boolean) {
+    if (this.tracks.video) {
+      await this.tracks.video.setEnabled(enabled);
     }
   }
 }

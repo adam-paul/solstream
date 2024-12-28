@@ -1,7 +1,8 @@
+// src/components/ui/StreamComponent.tsx
 'use client'
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Mic, Video, VideoOff, MicOff, Settings } from 'lucide-react';
+import React, { useRef, useEffect, useState } from 'react';
+import { Mic, Video, VideoOff, MicOff } from 'lucide-react';
 import { agoraService } from '@/lib/agoraService';
 import { useStreamStore } from '@/lib/StreamStore';
 import { socketService } from '@/lib/socketService';
@@ -11,207 +12,90 @@ interface StreamComponentProps {
   streamId: string;
 }
 
-interface StreamControls {
-  videoEnabled: boolean;
-  audioEnabled: boolean;
-  selectedCamera: string;
-  selectedMicrophone: string;
-}
-
 const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
-  // Refs
   const videoRef = useRef<HTMLDivElement>(null);
-  const mountedRef = useRef(true);
   const router = useRouter();
-  // State
+  
+  // Minimal state
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [controls, setControls] = useState<StreamControls>({
-    videoEnabled: true,
-    audioEnabled: true,
-    selectedCamera: '',
-    selectedMicrophone: ''
-  });
-  const [devices, setDevices] = useState<{
-    cameras: MediaDeviceInfo[];
-    microphones: MediaDeviceInfo[];
-  }>({ cameras: [], microphones: [] });
-  const [showSettings, setShowSettings] = useState(false);
 
   const { getStream, endStream, setStreamLiveStatus } = useStreamStore();
   const stream = getStream(streamId);
 
-  // Error handling
-  const handleMediaError = useCallback((operation: string, err: unknown) => {
-    const message = err instanceof Error ? err.message : 'Media operation failed';
-    setError(`${operation}: ${message}`);
-    setTimeout(() => setError(null), 5000);
-  }, []);
-
-  // Media initialization
+  // Initialize stream
   useEffect(() => {
-    mountedRef.current = true;
-    
-    const initializeMedia = async () => {
-      if (!videoRef.current || !stream) {
-        setError('Missing required stream data');
-        return;
-      }
+    let isMounted = true;
+
+    const initStream = async () => {
+      if (!videoRef.current || !stream) return;
 
       try {
-        await agoraService.initializeClient({
+        await agoraService.setupStream({
+          streamId,
           role: 'host',
-          streamId
-        });
-      
-        const { audioTrack, videoTrack } = await agoraService.initializeHostTracks({
-          cameraId: controls.selectedCamera || null,
-          microphoneId: controls.selectedMicrophone || null
+          container: videoRef.current
         });
 
-        if (!audioTrack && !videoTrack) {
-          throw new Error('Failed to initialize media tracks');
-        }
-
-        if (videoTrack && videoRef.current) {
-          agoraService.playVideo(videoRef.current);
-        }
-
-        if (audioTrack) {
-          setControls(prev => ({ ...prev, audioEnabled: true }));
-        }
+        if (!isMounted) return;
+        
+        // Start live immediately after setup
+        socketService.updateStreamLiveStatus({ streamId, isLive: true });
       } catch (err) {
-        handleMediaError('Failed to initialize media', err);
+        if (!isMounted) return;
+        setError(err instanceof Error ? err.message : 'Failed to initialize stream');
+        setTimeout(() => setError(null), 5000);
       }
     };
 
-    initializeMedia();
+    initStream();
 
     return () => {
-      mountedRef.current = false;
+      isMounted = false;
       agoraService.cleanup().catch(console.error);
     };
-  }, [stream, streamId, controls.selectedCamera, controls.selectedMicrophone, handleMediaError]);
+  }, [stream, streamId]);
 
-  // Media control handlers
-  const toggleVideo = useCallback(async () => {
+  // Simple media controls
+  const toggleVideo = async () => {
     try {
-      await agoraService.toggleVideo(!controls.videoEnabled);
-      setControls(prev => ({ ...prev, videoEnabled: !prev.videoEnabled }));
-    } catch (err) {
-      handleMediaError('Failed to toggle video', err);
+      await agoraService.toggleVideo(!isVideoEnabled);
+      setIsVideoEnabled(!isVideoEnabled);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to toggle video';
+      setError(message);
+      setTimeout(() => setError(null), 5000);
     }
-  }, [controls.videoEnabled, handleMediaError]);
+  };
 
-  const toggleAudio = useCallback(async () => {
+  const toggleAudio = async () => {
     try {
-      await agoraService.toggleAudio(!controls.audioEnabled);
-      setControls(prev => ({ ...prev, audioEnabled: !prev.audioEnabled }));
-    } catch (err) {
-      handleMediaError('Failed to toggle audio', err);
+      await agoraService.toggleAudio(!isAudioEnabled);
+      setIsAudioEnabled(!isAudioEnabled);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to toggle audio';
+      setError(message);
+      setTimeout(() => setError(null), 5000);
     }
-  }, [controls.audioEnabled, handleMediaError]);
+  };
 
-  const handleDeviceChange = useCallback(async (type: 'camera' | 'microphone', deviceId: string) => {
-    try {
-      if (type === 'camera') {
-        await agoraService.switchCamera(deviceId);
-        setControls(prev => ({ ...prev, selectedCamera: deviceId }));
-      } else {
-        await agoraService.switchMicrophone(deviceId);
-        setControls(prev => ({ ...prev, selectedMicrophone: deviceId }));
-      }
-    } catch (err) {
-      handleMediaError(`Failed to switch ${type}`, err);
-    }
-  }, [handleMediaError]);
-
-  // Start live streaming
-  const startLiveStream = useCallback(async () => {
-    if (!videoRef.current || !stream) return;
-  
-    try {
-      // Publish tracks
-      console.log('Starting to publish tracks');
-      await agoraService.publishTracks();
-      
-      // Update state
-      socketService.updateStreamLiveStatus({ streamId, isLive: true });
-  
-    } catch (err) {
-      handleMediaError('Failed to start stream', err);
-    }
-  }, [stream, streamId, handleMediaError]);
-
-  // Handle stream end
-  const handleEndStream = useCallback(async () => {
+  // End stream
+  const handleEndStream = async () => {
     try {
       if (stream?.isLive) {
         setStreamLiveStatus(streamId, false);
         socketService.updateStreamLiveStatus({ streamId, isLive: false });
       }
-  
-      // Wait for Agora cleanup to complete
-      await agoraService.cleanup();
       
-      // Then handle stream state cleanup
+      await agoraService.cleanup();
       endStream(streamId);
-  
-      // Finally use Next.js router for navigation
       router.push('/');
     } catch (error) {
       console.error('Error ending stream:', error);
       router.push('/');
     }
-  }, [streamId, stream?.isLive, setStreamLiveStatus, endStream, router]);
-
-  // Initialize devices
-  useEffect(() => {
-    mountedRef.current = true;
-
-    const initialize = async () => {
-      try {
-        await agoraService.cleanup();
-        
-        const availableDevices = await agoraService.getDevices();
-        if (!mountedRef.current) return;
-        
-        setDevices(availableDevices);
-        setControls(prev => ({
-          ...prev,
-          selectedCamera: availableDevices.cameras[0]?.deviceId || '',
-          selectedMicrophone: availableDevices.microphones[0]?.deviceId || ''
-        }));
-      } catch (err) {
-        if (mountedRef.current) {
-          handleMediaError('Failed to initialize devices', err);
-        }
-      }
-    };
-
-    initialize();
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, [handleMediaError]);
-
-  // Device change listener
-  useEffect(() => {
-    const handleDevicesChanged = () => {
-      agoraService.getDevices()
-        .then(newDevices => {
-          if (mountedRef.current) {
-            setDevices(newDevices);
-          }
-        })
-        .catch(err => handleMediaError('Failed to update devices', err));
-    };
-
-    navigator.mediaDevices.addEventListener('devicechange', handleDevicesChanged);
-    return () => {
-      navigator.mediaDevices.removeEventListener('devicechange', handleDevicesChanged);
-    };
-  }, [handleMediaError]);
+  };
 
   if (!stream) return null;
 
@@ -226,27 +110,12 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
           {stream.ticker && <p className="text-gray-400">${stream.ticker}</p>}
         </div>
         
-        <div className="flex gap-2">
-          {!stream.isLive && (
-            <button
-              onClick={startLiveStream}
-              disabled={!!error}
-              className={`px-4 py-2 rounded-lg ${
-                error
-                  ? 'bg-gray-500 cursor-not-allowed'
-                  : 'bg-green-500 hover:bg-green-600'
-              }`}
-            >
-              Go Live
-            </button>
-          )}
-          <button 
-            onClick={handleEndStream}
-            className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
-          >
-            End Stream
-          </button>
-        </div>
+        <button 
+          onClick={handleEndStream}
+          className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"
+        >
+          End Stream
+        </button>
       </div>
 
       {/* Error Display */}
@@ -256,7 +125,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
         </div>
       )}
 
-      {/* Video Preview */}
+      {/* Video Container */}
       <div className="relative">
         <div 
           ref={videoRef}
@@ -268,70 +137,22 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId }) => {
           <button
             onClick={toggleVideo}
             className={`p-2 rounded-full ${
-              controls.videoEnabled ? 'bg-blue-500' : 'bg-red-500'
+              isVideoEnabled ? 'bg-blue-500' : 'bg-red-500'
             }`}
           >
-            {controls.videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
+            {isVideoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
           </button>
 
           <button
             onClick={toggleAudio}
             className={`p-2 rounded-full ${
-              controls.audioEnabled ? 'bg-blue-500' : 'bg-red-500'
+              isAudioEnabled ? 'bg-blue-500' : 'bg-red-500'
             }`}
           >
-            {controls.audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
-          </button>
-
-          <button
-            onClick={() => setShowSettings(prev => !prev)}
-            className="p-2 rounded-full bg-gray-700 hover:bg-gray-600"
-          >
-            <Settings size={20} />
+            {isAudioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
           </button>
         </div>
       </div>
-
-      {/* Settings Panel */}
-      {showSettings && (
-        <div className="mt-4 p-4 bg-gray-900 rounded-lg">
-          <h3 className="text-lg font-semibold mb-4">Stream Settings</h3>
-
-          <div className="space-y-4">
-            {/* Camera Selection */}
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Camera</label>
-              <select
-                value={controls.selectedCamera}
-                onChange={(e) => handleDeviceChange('camera', e.target.value)}
-                className="w-full bg-gray-800 rounded p-2"
-              >
-                {devices.cameras.map(camera => (
-                  <option key={camera.deviceId} value={camera.deviceId}>
-                    {camera.label || `Camera ${camera.deviceId}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Microphone Selection */}
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Microphone</label>
-              <select
-                value={controls.selectedMicrophone}
-                onChange={(e) => handleDeviceChange('microphone', e.target.value)}
-                className="w-full bg-gray-800 rounded p-2"
-              >
-                {devices.microphones.map(mic => (
-                  <option key={mic.deviceId} value={mic.deviceId}>
-                    {mic.label || `Microphone ${mic.deviceId}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Viewer Count */}
       {stream.isLive && stream.viewers > 0 && (

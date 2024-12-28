@@ -7,12 +7,12 @@ import type { Stream } from '@/types/stream';
 
 interface StreamContainerProps {
   stream: Stream;
-  isHost?: boolean;
+  isHost: boolean;
 }
 
-export const StreamContainer: React.FC<StreamContainerProps> = ({
+const StreamContainer: React.FC<StreamContainerProps> = ({
   stream,
-  isHost = false
+  isHost
 }) => {
   return isHost ? (
     <StreamComponent streamId={stream.id} />
