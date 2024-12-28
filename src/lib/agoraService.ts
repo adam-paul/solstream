@@ -7,7 +7,7 @@ import type {
   MediaDevices, 
   DeviceConfig, 
   LocalTracks,
-  IAgoraService 
+  IAgoraService
 } from '@/types/agora';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 
@@ -41,7 +41,7 @@ export class AgoraService implements IAgoraService {
       codec: "vp8"
     });
 
-    // Set the client role explicitly
+    // Explicitly set client role
     await this.client.setClientRole(config.role === 'host' ? 'host' : 'audience');
   
     const tokenData = config.token ? 
@@ -139,7 +139,8 @@ export class AgoraService implements IAgoraService {
     await this.client.publish(tracks);
     console.log('Published tracks:', {
       audioTrack: !!this.localTracks.audioTrack,
-      videoTrack: !!this.localTracks.videoTrack
+      videoTrack: !!this.localTracks.videoTrack,
+      clientState: this.client.connectionState,
     });
   }
 
@@ -164,47 +165,29 @@ export class AgoraService implements IAgoraService {
     console.log('Pre-subscribe state:', { 
       mediaType,
       userId: user.uid,
-      connectionState: this.client.connectionState,
-      hasVideoTrack: !!user.videoTrack,
-      hasAudioTrack: !!user.audioTrack,
-      videoEnabled: user.hasVideo,
-      audioEnabled: user.hasAudio
+      connectionState: this.client.connectionState
     });
   
-    await this.client.subscribe(user, mediaType);
-    console.log('Post-subscribe state:', {
-      mediaType,
-      trackExists: mediaType === 'video' ? !!user.videoTrack : !!user.audioTrack,
-      trackEnabled: mediaType === 'video' ? user.hasVideo : user.hasAudio,
-      trackState: mediaType === 'video' 
-        ? user.videoTrack?.getMediaStreamTrack().readyState 
-        : user.audioTrack?.getMediaStreamTrack().readyState
-    });
-    
-    if (mediaType === 'video' && user.videoTrack) {
-      console.log('Attempting video play:', {
-        trackId: user.videoTrack.getMediaStreamTrack().id,
-        trackEnabled: user.videoTrack.getMediaStreamTrack().enabled,
-        trackMuted: user.videoTrack.getMediaStreamTrack().muted
-      });
-      user.videoTrack.play(container);
-      console.log('Video track played');
-    } else if (mediaType === 'audio' && user.audioTrack) {
-      console.log('Attempting audio play:', {
-        trackId: user.audioTrack.getMediaStreamTrack().id,
-        trackEnabled: user.audioTrack.getMediaStreamTrack().enabled,
-        trackMuted: user.audioTrack.getMediaStreamTrack().muted
-      });
-      user.audioTrack.play();
-      console.log('Audio track played');
-    } else {
-      console.log('No track available after subscription:', {
+    try {
+      const track = await this.client.subscribe(user, mediaType);
+      
+      console.log('Post-subscribe state:', {
         mediaType,
-        hasVideoTrack: !!user.videoTrack,
-        hasAudioTrack: !!user.audioTrack,
-        videoEnabled: user.hasVideo,
-        audioEnabled: user.hasAudio
+        hasTrack: !!track,
       });
+      
+      if (mediaType === 'video' && 'play' in track) {
+        track.play(container);
+        console.log('Video track played');
+      } else if (mediaType === 'audio' && 'play' in track) {
+        track.play();
+        console.log('Audio track played');
+      } else {
+        console.log('Unknown track type received:', { mediaType });
+      }
+    } catch (error) {
+      console.error('Failed to subscribe/play track:', error);
+      throw error;
     }
   }
 

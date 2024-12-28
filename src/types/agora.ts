@@ -4,7 +4,9 @@ import type {
   IAgoraRTCClient, 
   ICameraVideoTrack, 
   IMicrophoneAudioTrack,
-  IAgoraRTCRemoteUser
+  IAgoraRTCRemoteUser,
+  IRemoteVideoTrack,
+  IRemoteAudioTrack
 } from 'agora-rtc-sdk-ng';
 
 // Core Agora Types
@@ -12,7 +14,9 @@ export type {
   IAgoraRTCClient,
   ICameraVideoTrack,
   IMicrophoneAudioTrack,
-  IAgoraRTCRemoteUser
+  IAgoraRTCRemoteUser,
+  IRemoteVideoTrack,
+  IRemoteAudioTrack
 };
 
 // Stream Configuration
