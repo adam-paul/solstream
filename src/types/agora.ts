@@ -25,6 +25,7 @@ export interface StreamConfig {
   streamId: string;
   token?: string;
   uid?: number;
+  container?: HTMLElement;
 }
 
 // Device Management
@@ -54,13 +55,6 @@ export interface IAgoraService {
   initializeHostTracks(deviceConfig?: DeviceConfig): Promise<LocalTracks>;
   publishTracks(): Promise<void>;
   playVideo(container: HTMLElement): void;
-  
-  // Remote user handling
-  handleUserPublished(
-    container: HTMLElement,
-    user: IAgoraRTCRemoteUser, 
-    mediaType: 'audio' | 'video'
-  ): Promise<void>;
   
   // Device management
   getDevices(): Promise<MediaDevices>;

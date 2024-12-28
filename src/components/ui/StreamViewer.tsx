@@ -1,11 +1,9 @@
 'use client'
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Loader2, AlertCircle, Clock } from 'lucide-react';
 import { agoraService } from '@/lib/agoraService';
-import { useStreamStore } from '@/lib/StreamStore';
 import type { Stream } from '@/types/stream';
-import type { IAgoraRTCRemoteUser } from 'agora-rtc-sdk-ng';
 
 interface StreamViewerProps {
   stream: Stream;
@@ -19,31 +17,13 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
   // State
   const [error, setError] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(true);
-  
-  // Store methods
-  const { isStreamHost } = useStreamStore();
 
   // Single error handler for viewer media operations
-  const handleMediaError = useCallback((operation: string, err: unknown) => {
+  const handleMediaError = (operation: string, err: unknown) => {
     const message = err instanceof Error ? err.message : 'Media operation failed';
     setError(`${operation}: ${message}`);
     setTimeout(() => setError(null), 5000);
-  }, []);
-
-  // Handle remote user media
-  const handleUserPublished = useCallback(async (
-    user: IAgoraRTCRemoteUser,
-    mediaType: 'audio' | 'video'
-  ) => {
-    if (!videoRef.current) return;
-
-    try {
-      console.log('Handling user published media:', { user, mediaType });
-      await agoraService.handleUserPublished(videoRef.current, user, mediaType);
-    } catch (err) {
-      handleMediaError('Failed to handle published media', err);
-    }
-  }, [handleMediaError]);
+  };
 
   // Initialize stream connection
   useEffect(() => {
@@ -63,17 +43,11 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
         setIsConnecting(true);
         setError(null);
   
-        const client = await agoraService.initializeClient({
+        await agoraService.initializeClient({
           role: 'audience',
-          streamId: stream.id
+          streamId: stream.id,
+          container: videoRef.current
         });
-  
-        console.log('Client initialized:', { 
-          connectionState: client.connectionState,
-          role: 'audience'
-        });
-  
-        client.on('user-published', handleUserPublished);
         
         if (mountedRef.current) {
           setIsConnecting(false);
@@ -94,16 +68,7 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ stream }) => {
       mountedRef.current = false;
       agoraService.cleanup().catch(console.error);
     };
-  }, [stream.id, stream.isLive, handleUserPublished, handleMediaError]);
-
-  // Check if user can view this stream
-  if (isStreamHost(stream.id)) {
-    return (
-      <div className="text-red-500 p-4 bg-gray-900 rounded-lg">
-        Cannot view your own stream as a viewer
-      </div>
-    );
-  }
+  }, [stream.id, stream.isLive]);
 
   return (
     <div className="w-full bg-gray-800 rounded-lg overflow-hidden">

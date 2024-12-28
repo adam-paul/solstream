@@ -2,7 +2,6 @@
 
 import type { 
   IAgoraRTCClient, 
-  IAgoraRTCRemoteUser,
   StreamConfig, 
   MediaDevices, 
   DeviceConfig, 
@@ -27,23 +26,27 @@ export class AgoraService implements IAgoraService {
     }
   }
 
-  async initializeClient(config: StreamConfig): Promise<IAgoraRTCClient> {
+  async initializeClient(config: StreamConfig & { container?: HTMLElement }): Promise<IAgoraRTCClient> {
     await this.cleanup();
-  
+
     console.log('Initializing Agora client:', { 
       role: config.role,
       streamId: config.streamId,
       hasToken: !!config.token
     });
-  
+
     this.client = AgoraRTC.createClient({
       mode: "live",
       codec: "vp8"
     });
 
-    // Explicitly set client role
+    // Store container reference for audience role
+    if (config.role === 'audience' && config.container) {
+      this.videoContainer = config.container;
+    }
+
     await this.client.setClientRole(config.role === 'host' ? 'host' : 'audience');
-  
+
     const tokenData = config.token ? 
       { token: config.token, uid: config.uid } : 
       await this.fetchToken(config.streamId, config.role === 'host');
@@ -57,13 +60,50 @@ export class AgoraService implements IAgoraService {
       connectionState: this.client?.connectionState,
       timestamp: Date.now()
     });
-  
+
     await this.client.join(
       this.appId,
       config.streamId,
       tokenData.token,
       tokenData.uid
     );
+
+    // Add event listeners for audience role
+    if (config.role === 'audience' && this.videoContainer) {
+      this.client.on('user-published', async (user, mediaType) => {
+        console.log('User published event:', {
+          userId: user.uid,
+          mediaType,
+          hasAudioTrack: !!user.audioTrack,
+          hasVideoTrack: !!user.videoTrack,
+          clientState: this.client?.connectionState
+        });
+    
+        try {
+          if (!this.client) {
+            throw new Error('Client not initialized');
+          }
+    
+          await this.client.subscribe(user, mediaType);
+          
+          console.log('Post-subscribe state:', {
+            mediaType,
+            hasTrack: mediaType === 'video' ? !!user.videoTrack : !!user.audioTrack
+          });
+    
+          if (mediaType === 'video' && user.videoTrack && this.videoContainer) {
+            user.videoTrack.play(this.videoContainer);
+            console.log('Video track played');
+          } else if (mediaType === 'audio' && user.audioTrack) {
+            user.audioTrack.play();
+            console.log('Audio track played');
+          }
+        } catch (error) {
+          console.error('Failed to handle published media:', error);
+          throw error;
+        }
+      });
+    }
     
     return this.client;
   }
@@ -114,7 +154,6 @@ export class AgoraService implements IAgoraService {
         }
       });
 
-      // Ensure tracks are enabled before storing them
       await audioTrack.setEnabled(true);
       await videoTrack.setEnabled(true);
 
@@ -149,45 +188,6 @@ export class AgoraService implements IAgoraService {
     
     if (this.localTracks.videoTrack) {
       this.localTracks.videoTrack.play(container);
-    }
-  }
-
-  async handleUserPublished(
-    container: HTMLElement,
-    user: IAgoraRTCRemoteUser, 
-    mediaType: 'audio' | 'video'
-  ): Promise<void> {
-    if (!this.client) {
-      console.error('Client not initialized for subscription');
-      throw new Error('Client not initialized');
-    }
-  
-    console.log('Pre-subscribe state:', { 
-      mediaType,
-      userId: user.uid,
-      connectionState: this.client.connectionState
-    });
-  
-    try {
-      const track = await this.client.subscribe(user, mediaType);
-      
-      console.log('Post-subscribe state:', {
-        mediaType,
-        hasTrack: !!track,
-      });
-      
-      if (mediaType === 'video' && 'play' in track) {
-        track.play(container);
-        console.log('Video track played');
-      } else if (mediaType === 'audio' && 'play' in track) {
-        track.play();
-        console.log('Audio track played');
-      } else {
-        console.log('Unknown track type received:', { mediaType });
-      }
-    } catch (error) {
-      console.error('Failed to subscribe/play track:', error);
-      throw error;
     }
   }
 
@@ -274,7 +274,7 @@ export class AgoraService implements IAgoraService {
 
   async cleanup(): Promise<void> {
     try {
-      // 1. Clean DOM first to prevent memory leaks
+      // Clean DOM first to prevent memory leaks
       if (this.videoContainer) {
         while (this.videoContainer.firstChild) {
           this.videoContainer.removeChild(this.videoContainer.firstChild);
@@ -282,7 +282,7 @@ export class AgoraService implements IAgoraService {
         this.videoContainer = null;
       }
 
-      // 2. Cleanup tracks in parallel for faster execution
+      // Cleanup tracks in parallel for faster execution
       const trackCleanup = Object.values(this.localTracks)
         .filter(track => track !== null)
         .map(async track => {
@@ -293,7 +293,7 @@ export class AgoraService implements IAgoraService {
       await Promise.all(trackCleanup);
       this.localTracks = { audioTrack: null, videoTrack: null };
 
-      // 3. Cleanup client last
+      // Cleanup client last
       if (this.client?.connectionState === 'CONNECTED' || 
           this.client?.connectionState === 'CONNECTING') {
         this.client.removeAllListeners();
