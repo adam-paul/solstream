@@ -65,6 +65,10 @@ export class AgoraService implements IAgoraService {
         role: config.role
       });
 
+      // Clear any existing handlers
+      this.client.removeAllListeners('user-published');
+      
+      // Set up event handler before joining
       this.client.on('user-published', async (user, mediaType) => {
         console.log('User published event:', {
           userId: user.uid,
