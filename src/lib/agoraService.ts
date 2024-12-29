@@ -105,12 +105,14 @@ export class AgoraService {
   async toggleAudio() {
     if (this.audioTrack) {
       await this.audioTrack.setEnabled(!this.audioTrack.enabled);
+      return !this.audioTrack.enabled;
     }
   }
 
   async toggleVideo() {
     if (this.videoTrack) {
       await this.videoTrack.setEnabled(!this.videoTrack.enabled);
+      return !this.videoTrack.enabled;
     }
   }
 }
