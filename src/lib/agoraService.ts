@@ -101,6 +101,18 @@ export class AgoraService {
       console.error('Error stopping broadcast:', error);
     }
   }
+
+  async toggleAudio() {
+    if (this.audioTrack) {
+      await this.audioTrack.setEnabled(!this.audioTrack.enabled);
+    }
+  }
+
+  async toggleVideo() {
+    if (this.videoTrack) {
+      await this.videoTrack.setEnabled(!this.videoTrack.enabled);
+    }
+  }
 }
 
 export const agoraService = new AgoraService();

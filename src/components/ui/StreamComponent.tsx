@@ -4,6 +4,7 @@ import React, { useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { agoraService } from '@/lib/agoraService';
 import { useStreamStore } from '@/lib/StreamStore';
+import { Mic, Video } from 'lucide-react';
 
 interface StreamComponentProps {
   streamId: string;
@@ -52,10 +53,28 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) =>
         </button>
       </div>
 
-      <div 
-        ref={videoRef} 
-        className="w-full aspect-video bg-gray-900 rounded-lg"
-      />
+      <div className="relative w-full group">
+        <div 
+          ref={videoRef} 
+          className="w-full aspect-video bg-gray-900 rounded-lg"
+        />
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent translate-y-full transform group-hover:translate-y-0 transition-transform duration-300 flex justify-center items-center gap-4 p-4">
+          <button
+            onClick={() => agoraService.toggleAudio()}
+            className="bg-gray-800/80 hover:bg-gray-700/80 p-2 rounded-full transition-colors"
+            aria-label="Toggle audio"
+          >
+            <Mic size={20} className="text-white" />
+          </button>
+          <button
+            onClick={() => agoraService.toggleVideo()} 
+            className="bg-gray-800/80 hover:bg-gray-700/80 p-2 rounded-full transition-colors"
+            aria-label="Toggle video"
+          >
+            <Video size={20} className="text-white" />
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
