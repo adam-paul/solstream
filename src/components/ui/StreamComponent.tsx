@@ -53,7 +53,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) =>
         </button>
       </div>
 
-      <div className="relative w-full group">
+      <div className="relative w-full group overflow-hidden">
         <div 
           ref={videoRef} 
           className="w-full aspect-video bg-gray-900 rounded-lg"
