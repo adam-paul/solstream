@@ -22,9 +22,8 @@ const SolstreamUI: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
 
-  const { getAllStreams } = useStreamStore();
-  const streams = getAllStreams();
-  
+  const streams = useStreamStore(state => state.getAllStreams());
+
   // Navigation handlers
   const handleStreamCreated = (streamId: string) => {
     setShowStreamModal(false);
