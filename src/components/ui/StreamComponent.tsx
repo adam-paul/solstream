@@ -77,7 +77,12 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) =>
           ref={videoRef} 
           className="w-full aspect-video bg-gray-900 rounded-lg"
         />
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent translate-y-full transform group-hover:translate-y-0 transition-transform duration-300 flex justify-center items-center gap-4 p-4">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent translate-y-full transform group-hover:translate-y-0 transition-transform duration-300 flex justify-center items-center gap-4 p-4"
+          onMouseLeave={() => {
+            setShowAudioMenu(false);
+            setShowVideoMenu(false);
+          }}
+        >
           <div className="relative">
             <button
               onClick={async () => {
@@ -94,14 +99,20 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) =>
               )}
             </button>
             <button
-              onClick={() => setShowAudioMenu(!showAudioMenu)}
+              onClick={() => {
+                setShowVideoMenu(false);
+                setShowAudioMenu(!showAudioMenu);
+              }}
               className="absolute -bottom-1 -right-1 bg-gray-800/80 hover:bg-gray-700/80 p-1 rounded-full"
             >
               <ChevronDown size={12} className="text-white" />
             </button>
             
             {showAudioMenu && devices?.microphones && (
-              <div className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-lg p-2 min-w-[200px] shadow-lg">
+              <div 
+                className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-lg p-2 min-w-[200px] shadow-lg"
+                onBlur={() => setShowAudioMenu(false)}
+              >
                 {devices.microphones.map((mic) => (
                   <button
                     key={mic.deviceId}
@@ -136,13 +147,19 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) =>
               )}
             </button>
             <button
-              onClick={() => setShowVideoMenu(!showVideoMenu)}
+              onClick={() => {
+                setShowAudioMenu(false);
+                setShowVideoMenu(!showVideoMenu);
+              }}
               className="absolute -bottom-1 -right-1 bg-gray-800/80 hover:bg-gray-700/80 p-1 rounded-full"
             >
               <ChevronDown size={12} className="text-white" />
             </button>
             {showVideoMenu && devices?.cameras && (
-              <div className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-lg p-2 min-w-[200px] shadow-lg">
+              <div 
+                className="absolute bottom-full mb-2 left-0 bg-gray-800 rounded-lg p-2 min-w-[200px] shadow-lg"
+                onBlur={() => setShowVideoMenu(false)}
+              >
                 {devices.cameras.map((camera) => (
                   <button
                     key={camera.deviceId}
