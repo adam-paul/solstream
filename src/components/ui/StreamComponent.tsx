@@ -10,9 +10,10 @@ import { Mic, Video, MicOff, VideoOff, ChevronDown } from 'lucide-react';
 interface StreamComponentProps {
   streamId: string;
   title: string;
+  isLive: boolean;
 }
 
-const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) => {
+const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title, isLive }) => {
   // Refs
   const videoRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -25,6 +26,9 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) =>
   const [showVideoMenu, setShowVideoMenu] = useState(false);
   const [activeCamera, setActiveCamera] = useState<string | null>(null);
   const [activeMic, setActiveMic] = useState<string | null>(null);
+
+  // StreamStore
+  const { setStreamLiveStatus, endStream } = useStreamStore();
 
   useEffect(() => {
     const fetchDevices = async () => {
@@ -56,14 +60,31 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title }) =>
 
   const handleEndStream = () => {
     agoraService.stopBroadcast();
-    useStreamStore.getState().endStream(streamId);
+    endStream(streamId);
     router.push('/');
+  };
+
+  const handleGoLive = async () => {
+    try {
+      await agoraService.goLive();
+      setStreamLiveStatus(streamId, true);
+    } catch (error) {
+      console.error('Failed to go live:', error);
+    }
   };
 
   return (
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-yellow-400">{title}</h2>
+        {!isLive && (
+          <button 
+            onClick={handleGoLive}
+            className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg"
+          >
+            Go Live
+          </button>
+        )}
         <button 
           onClick={handleEndStream}
           className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg"

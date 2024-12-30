@@ -15,7 +15,7 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
   isHost
 }) => {
   return isHost ? (
-    <StreamComponent streamId={stream.id} title={stream.title} />
+    <StreamComponent streamId={stream.id} title={stream.title} isLive={stream.isLive} />
   ) : (
     <StreamViewer streamId={stream.id} title={stream.title} />
   );

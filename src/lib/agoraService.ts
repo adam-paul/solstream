@@ -40,14 +40,21 @@ export class AgoraService {
       if (this.videoTrack) {
         this.videoTrack.play(container);
       }
-
-      // Publish tracks
-      if (this.audioTrack && this.videoTrack) {
-        await this.client.publish([this.audioTrack, this.videoTrack]);
-      }
     } catch (error) {
       console.error('Failed to start broadcast:', error);
       await this.stopBroadcast();
+      throw error;
+    }
+  }
+
+  async goLive() {
+    try {
+      // Publish tracks
+      if (this.client && this.audioTrack && this.videoTrack) {
+        await this.client.publish([this.audioTrack, this.videoTrack]);
+      }
+    } catch (error) {
+      console.error('Failed to go live:', error);
       throw error;
     }
   }
