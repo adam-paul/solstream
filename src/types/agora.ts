@@ -57,7 +57,7 @@ export interface IAgoraService {
   playVideo(container: HTMLElement): void;
   
   // Device management
-  getDevices(): Promise<MediaDevices>;
+  fetchDevices(): Promise<MediaDevices>;
   switchCamera(deviceId: string): Promise<void>;
   switchMicrophone(deviceId: string): Promise<void>;
   

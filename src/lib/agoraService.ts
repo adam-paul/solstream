@@ -5,6 +5,8 @@ import AgoraRTC, {
   IAgoraRTCRemoteUser
 } from 'agora-rtc-sdk-ng';
 
+import { MediaDevices } from '@/types/agora';
+
 export class AgoraService {
   private client: IAgoraRTCClient | undefined;
   private videoTrack: ICameraVideoTrack | undefined;
@@ -99,6 +101,34 @@ export class AgoraService {
       }
     } catch (error) {
       console.error('Error stopping broadcast:', error);
+    }
+  }
+
+  async fetchDevices(): Promise<MediaDevices> {
+    try {
+      const devices = await AgoraRTC.getDevices();
+      const cameras = devices.filter(device => device.kind === 'videoinput');
+      const microphones = devices.filter(device => device.kind === 'audioinput');
+      
+      return {
+        cameras,
+        microphones
+      };
+    } catch (error) {
+      console.error('Failed to get devices:', error);
+      throw error;
+    }
+  }
+
+  async setVideoDevice(deviceId: string) {
+    if (this.videoTrack) {
+      await this.videoTrack.setDevice(deviceId);
+    }
+  }
+
+  async setAudioDevice(deviceId: string) {
+    if (this.audioTrack) {
+      await this.audioTrack.setDevice(deviceId);
     }
   }
 
