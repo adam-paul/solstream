@@ -18,10 +18,11 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
           <EyeOff size={24} className="mb-2" />
           <span className="text-sm">Stream Preview Loading</span>
         </div>
-        
-        <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
-          LIVE
-        </div>
+        {stream.isLive && (
+          <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
+            LIVE
+          </div>
+        )}
       </div>
       
       <div className="p-4">

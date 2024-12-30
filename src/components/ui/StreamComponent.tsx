@@ -77,7 +77,7 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title, isLi
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold text-yellow-400">{title}</h2>
-        <div className="flex gap-2"> {/* New container for buttons */}
+        <div className="flex gap-2">
           {!isLive && (
             <button 
               onClick={handleGoLive}
