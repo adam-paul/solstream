@@ -24,7 +24,7 @@ const SolstreamUI: React.FC = () => {
 
   const streamsMap = useStreamStore(state => state.streams);
   const streams = Array.from(streamsMap.values());
-  
+
   // Navigation handlers
   const handleStreamCreated = (streamId: string) => {
     setShowStreamModal(false);
@@ -185,6 +185,7 @@ const SolstreamUI: React.FC = () => {
             <StreamTile
               key={stream.id}
               stream={stream}
+              isLive={stream.isLive}
               onClick={() => handleStreamSelect(stream.id)}
             />
           ))}
