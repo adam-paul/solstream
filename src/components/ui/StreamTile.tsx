@@ -8,7 +8,7 @@ interface StreamTileProps {
   isLive: boolean;
 }
 
-const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
+const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick, isLive }) => {
   return (
     <div 
       className="bg-gray-800 rounded-lg overflow-hidden hover:ring-2 hover:ring-blue-500 transition-all cursor-pointer"
@@ -19,7 +19,7 @@ const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
           <EyeOff size={24} className="mb-2" />
           <span className="text-sm">Stream Preview Loading</span>
         </div>
-        {stream.isLive && (
+        {isLive && (
           <div className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">
             LIVE
           </div>
