@@ -65,14 +65,9 @@ const useStreamStore = create<StreamState>()((set, get) => ({
     );
   },
 
-  setStreamLiveStatus: (streamId: string, isLive: boolean) => set(state => {
-    const stream = state.streams.get(streamId);
-    if (!stream || stream.isLive === isLive) return state; 
-  
-    const newStreams = new Map(state.streams);
-    newStreams.set(streamId, { ...stream, isLive });
-    return { streams: newStreams };
-  }),
+  setStreamLiveStatus: (streamId: string, isLive: boolean) => {
+    socketService.updateStreamLiveStatus({ streamId, isLive });
+  },
 
   initializeStore: async () => {
     try {
@@ -98,7 +93,14 @@ const useStreamStore = create<StreamState>()((set, get) => ({
       });
 
       socketService.onStreamLiveStatusChanged(({ streamId, isLive }) => {
-        get().setStreamLiveStatus(streamId, isLive);
+        const stream = get().streams.get(streamId);
+        if (!stream || stream.isLive === isLive) return;
+        
+        set(state => {
+          const newStreams = new Map(state.streams);
+          newStreams.set(streamId, { ...stream, isLive });
+          return { streams: newStreams };
+        });
       });
 
       socketService.onStreamEnded((id) => {
