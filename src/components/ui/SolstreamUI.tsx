@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
-import { useStreamStore } from '@/lib/StreamStore';
+import { Stream } from '@/types/stream';
 
 // Maintain mock activity for UI demonstration
 const mockActivity = [
@@ -16,14 +16,15 @@ const mockActivity = [
   "🚀 Technical Analysis stream starting for $BONK"
 ];
 
-const SolstreamUI: React.FC = () => {
+interface SolstreamUIProps {
+  streams: Stream[];
+}
+
+const SolstreamUI: React.FC<SolstreamUIProps> = ({ streams }) => {
   const router = useRouter();
   const [sortBy, setSortBy] = useState<'featured' | 'newest' | 'viewers'>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
-
-  const { getStream, getAllStreams } = useStreamStore();
-  const streams = getAllStreams();
 
   // Navigation handlers
   const handleStreamCreated = (streamId: string) => {
@@ -186,7 +187,6 @@ const SolstreamUI: React.FC = () => {
               key={stream.id}
               stream={stream}
               onClick={() => handleStreamSelect(stream.id)}
-              isLive={getStream(stream.id)?.isLive ?? false}
             />
           ))}
         </div>
