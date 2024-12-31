@@ -20,7 +20,7 @@ interface SolstreamUIProps {
   streams: Stream[];
 }
 
-const SolstreamUI: React.FC<SolstreamUIProps> = ({ streams }) => {
+export default function SolstreamUI({ streams }: SolstreamUIProps) {
   const router = useRouter();
   const [sortBy, setSortBy] = useState<'featured' | 'newest' | 'viewers'>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -194,5 +194,3 @@ const SolstreamUI: React.FC<SolstreamUIProps> = ({ streams }) => {
     </div>
   );
 };
-
-export default SolstreamUI;
