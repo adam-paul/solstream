@@ -2,7 +2,7 @@
 'use client'
 
 import Image from 'next/image';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
@@ -22,8 +22,8 @@ const SolstreamUI: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
 
-  const streamsMap = useStreamStore(state => state.streams);
-  const streams = useMemo(() => Array.from(streamsMap.values()), [streamsMap]);
+  const { getStream, getAllStreams } = useStreamStore();
+  const streams = getAllStreams();
 
   // Navigation handlers
   const handleStreamCreated = (streamId: string) => {
@@ -36,24 +36,23 @@ const SolstreamUI: React.FC = () => {
   };
 
   // Sort streams based on selected criteria
-  const sortedStreams = useMemo(() => [...streams].sort((a, b) => {
+  const sortedStreams = [...streams].sort((a, b) => {
     switch (sortBy) {
       case 'newest':
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       case 'viewers':
         return b.viewers - a.viewers;
       default:
-        return 0;
+        return 0; // 'featured' maintains original order
     }
-  }), [streams, sortBy]);
+  });
 
   // Filter streams based on search query
-  const filteredStreams = useMemo(() => 
-    sortedStreams.filter(stream =>
-      stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      stream.ticker?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      stream.creator.toLowerCase().includes(searchQuery.toLowerCase())
-    ), [sortedStreams, searchQuery]);
+  const filteredStreams = sortedStreams.filter(stream =>
+    stream.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    stream.ticker?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    stream.creator.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Featured stream is the active one with the most viewers
   const featuredStream = filteredStreams.length > 0 
@@ -187,6 +186,7 @@ const SolstreamUI: React.FC = () => {
               key={stream.id}
               stream={stream}
               onClick={() => handleStreamSelect(stream.id)}
+              isLive={getStream(stream.id)?.isLive ?? false}
             />
           ))}
         </div>

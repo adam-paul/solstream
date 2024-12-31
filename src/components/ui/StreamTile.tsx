@@ -5,6 +5,7 @@ import type { Stream } from '@/types/stream';
 interface StreamTileProps {
   stream: Stream;
   onClick: () => void;
+  isLive: boolean;
 }
 
 const StreamTile: React.FC<StreamTileProps> = ({ stream, onClick }) => {
