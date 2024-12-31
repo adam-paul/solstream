@@ -34,8 +34,16 @@ export class AgoraService {
 
       // Create tracks
       this.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-      this.videoTrack = await AgoraRTC.createCameraVideoTrack();
-
+      this.videoTrack = await AgoraRTC.createCameraVideoTrack({
+        encoderConfig: {
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          frameRate: 30,
+          bitrateMin: 600,
+          bitrateMax: 1500
+        }
+      });
+      
       // Play video in container
       if (this.videoTrack) {
         this.videoTrack.play(container);
