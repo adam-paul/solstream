@@ -86,7 +86,7 @@ export default function SolstreamUI() {
             onClick={() => setShowStreamModal(true)}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg"
           >
-            start a new stream
+            [start a new stream]
           </button>
         </div>
 
