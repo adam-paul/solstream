@@ -23,7 +23,7 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
-      <div className="bg-yellow-400 text-black p-2 overflow-hidden">
+      <div className="bg-yellow-400 text-black p-2 rounded-lg mb-6 overflow-hidden">
         <div className="flex space-x-8 animate-scroll">
           <span className="whitespace-nowrap">
             🎥 Currently watching: {stream.title}
