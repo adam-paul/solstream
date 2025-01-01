@@ -8,6 +8,7 @@ import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
 import { useStreamStore } from '@/lib/StreamStore';
+import { WalletButton } from '@/components/wallet/WalletButton';
 
 // Maintain mock activity for UI demonstration
 const mockActivity = [
@@ -70,6 +71,11 @@ export default function SolstreamUI() {
             <span key={index} className="whitespace-nowrap">{activity}</span>
           ))}
         </div>
+      </div>
+
+      {/* Wallet Button */}
+      <div className="flex justify-end mb-4 px-4">
+        <WalletButton />
       </div>
 
       {/* Main Content */}
@@ -179,7 +185,7 @@ export default function SolstreamUI() {
           </div>
         </div>
 
-        {/* Streams Grid */}
+        {/* Stream Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
           {filteredStreams.map((stream) => (
             <StreamTile
