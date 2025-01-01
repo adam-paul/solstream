@@ -18,7 +18,7 @@ export const WalletButton = () => {
   return (
     <button
       onClick={handleClick}
-      className="text-white hover:text-gray-300 text-sm"
+      className="text-white hover:text-gray-300 text-base"
     >
       {connected && publicKey 
         ? `[${publicKey.toString().slice(0, 4)}...]`
