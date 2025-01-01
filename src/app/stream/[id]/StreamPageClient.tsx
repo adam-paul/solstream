@@ -5,6 +5,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import StreamContainer from '@/components/ui/StreamContainer';
 import { useStreamStore } from '@/lib/StreamStore';
+import { WalletButton } from '@/components/wallet/WalletButton';
 
 interface StreamPageClientProps {
   streamId: string;
@@ -31,6 +32,11 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
             👀 {stream.viewers} viewers
           </span>
         </div>
+      </div>
+
+      {/* Wallet Button */}
+      <div className="flex justify-end mb-4 px-4">
+        <WalletButton />
       </div>
 
       <div className="max-w-7xl mx-auto p-4">
