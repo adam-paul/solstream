@@ -22,7 +22,7 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-900 text-white p-4">
       <div className="bg-yellow-400 text-black p-2 rounded-lg mb-6 overflow-hidden">
         <div className="flex space-x-8 animate-scroll">
           <span className="whitespace-nowrap">
