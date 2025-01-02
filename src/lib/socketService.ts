@@ -113,7 +113,11 @@ export class SocketService {
 
   onChatMessageReceived(callback: ServerToClientEvents['chatMessageReceived']): () => void {
     if (!this.socket) return () => {};
-    this.socket.on('chatMessageReceived', callback);
+    console.log('Setting up chat message listener');
+    this.socket.on('chatMessageReceived', (data) => {
+      console.log('Received chat message:', data);
+      callback(data);
+    });
     return () => this.socket?.off('chatMessageReceived', callback);
   }
 

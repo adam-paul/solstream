@@ -15,9 +15,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
   const EMPTY_MESSAGES: ChatMessage[] = [];
   const { messages } = useStreamStore();
   const streamMessages = useStreamStore(state => {
+    console.log('ChatWindow: Getting messages for stream:', streamId);
     const messages = state.messages.get(streamId);
+    console.log('ChatWindow: Current messages:', messages);
     return messages ?? EMPTY_MESSAGES;
-  });  
+  }); 
   const { connected, publicKey } = useWallet();
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);

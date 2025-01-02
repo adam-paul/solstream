@@ -158,10 +158,13 @@ const useStreamStore = create<StreamState>()((set, get) => ({
       });
 
       socketService.onChatMessageReceived(({ streamId, message }) => {
+        console.log('StreamStore: Updating messages with:', message);
         set(state => {
           const newMessages = new Map(state.messages);
           const streamMessages = newMessages.get(streamId) || [];
-          newMessages.set(streamId, [...streamMessages, message]);
+          const updatedMessages = [...streamMessages, message];
+          console.log('StreamStore: New messages array:', updatedMessages);
+          newMessages.set(streamId, updatedMessages);
           return { messages: newMessages };
         });
       });
