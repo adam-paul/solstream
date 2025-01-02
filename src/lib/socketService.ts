@@ -15,6 +15,8 @@ interface ServerToClientEvents {
   streamLiveStatusChanged: (data: { streamId: string; isLive: boolean }) => void;
   chatMessageReceived: (data: { streamId: string; message: ChatMessage }) => void;
   chatHistoryReceived: (data: { streamId: string; messages: ChatMessage[] }) => void;
+  chatJoined: (data: { streamId: string }) => void;
+  chatLeft: (data: { streamId: string }) => void;
 }
 
 interface ClientToServerEvents {
@@ -23,6 +25,8 @@ interface ClientToServerEvents {
   joinStream: (streamId: string) => void;
   leaveStream: (streamId: string) => void;
   updateStreamLiveStatus: (data: { streamId: string; isLive: boolean }) => void;
+  joinChat: (streamId: string) => void;
+  leaveChat: (streamId: string) => void;
   sendChatMessage: (data: { streamId: string; content: string }) => void;
   requestChatHistory: (streamId: string) => void;
 }
@@ -69,6 +73,7 @@ export class SocketService {
     });
   }
 
+  // Stream-related methods remain unchanged
   startStream(stream: Stream): void {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
@@ -97,6 +102,22 @@ export class SocketService {
     this.socket.emit('leaveStream', streamId);
   }
 
+  // New chat room management methods
+  joinChat(streamId: string): void {
+    if (!this.socket?.connected) {
+      throw new Error('Socket not connected');
+    }
+    this.socket.emit('joinChat', streamId);
+  }
+
+  leaveChat(streamId: string): void {
+    if (!this.socket?.connected) {
+      throw new Error('Socket not connected');
+    }
+    this.socket.emit('leaveChat', streamId);
+  }
+
+  // Updated chat message methods
   sendChatMessage(data: { streamId: string; content: string }): void {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
@@ -111,35 +132,7 @@ export class SocketService {
     this.socket.emit('requestChatHistory', streamId);
   }
 
-  onChatMessageReceived(callback: ServerToClientEvents['chatMessageReceived']): () => void {
-    if (!this.socket) return () => {};
-    console.log('Setting up chat message listener');
-    this.socket.on('chatMessageReceived', (data) => {
-      console.log('Received chat message:', data);
-      callback(data);
-    });
-    return () => this.socket?.off('chatMessageReceived', callback);
-  }
-
-  onChatHistoryReceived(callback: ServerToClientEvents['chatHistoryReceived']): () => void {
-    if (!this.socket) return () => {};
-    this.socket.on('chatHistoryReceived', callback);
-    return () => this.socket?.off('chatHistoryReceived', callback);
-  }
-
-  updateStreamLiveStatus(data: { streamId: string; isLive: boolean }): void {
-    if (!this.socket?.connected) {
-      throw new Error('Socket not connected');
-    }
-    this.socket.emit('updateStreamLiveStatus', data);
-  }
-
-  onStreamLiveStatusChanged(callback: ServerToClientEvents['streamLiveStatusChanged']): () => void {
-    if (!this.socket) return () => {};
-    this.socket.on('streamLiveStatusChanged', callback);
-    return () => this.socket?.off('streamLiveStatusChanged', callback);
-  }
-
+  // Stream event listeners remain unchanged
   onStreamStarted(callback: ServerToClientEvents['streamStarted']): () => void {
     if (!this.socket) return () => {};
     this.socket.on('streamStarted', callback);
@@ -168,6 +161,49 @@ export class SocketService {
     if (!this.socket) return () => {};
     this.socket.on('roleChanged', callback);
     return () => this.socket?.off('roleChanged', callback);
+  }
+
+  // Chat event listeners
+  onChatJoined(callback: ServerToClientEvents['chatJoined']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('chatJoined', callback);
+    return () => this.socket?.off('chatJoined', callback);
+  }
+
+  onChatLeft(callback: ServerToClientEvents['chatLeft']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('chatLeft', callback);
+    return () => this.socket?.off('chatLeft', callback);
+  }
+
+  onChatMessageReceived(callback: ServerToClientEvents['chatMessageReceived']): () => void {
+    if (!this.socket) return () => {};
+    console.log('Setting up chat message listener');
+    this.socket.on('chatMessageReceived', (data) => {
+      console.log('Received chat message:', data);
+      callback(data);
+    });
+    return () => this.socket?.off('chatMessageReceived', callback);
+  }
+
+  onChatHistoryReceived(callback: ServerToClientEvents['chatHistoryReceived']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('chatHistoryReceived', callback);
+    return () => this.socket?.off('chatHistoryReceived', callback);
+  }
+
+  // Other methods remain unchanged
+  updateStreamLiveStatus(data: { streamId: string; isLive: boolean }): void {
+    if (!this.socket?.connected) {
+      throw new Error('Socket not connected');
+    }
+    this.socket.emit('updateStreamLiveStatus', data);
+  }
+
+  onStreamLiveStatusChanged(callback: ServerToClientEvents['streamLiveStatusChanged']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('streamLiveStatusChanged', callback);
+    return () => this.socket?.off('streamLiveStatusChanged', callback);
   }
 
   onError(callback: ServerToClientEvents['error']): () => void {

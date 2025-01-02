@@ -22,6 +22,8 @@ interface ServerToClientEvents {
   streamLiveStatusChanged: (data: { streamId: StreamId; isLive: boolean }) => void;
   chatMessageReceived: (data: { streamId: StreamId; message: ChatMessage }) => void;
   chatHistoryReceived: (data: { streamId: StreamId; messages: ChatMessage[] }) => void;
+  chatJoined: (data: { streamId: StreamId }) => void;
+  chatLeft: (data: { streamId: StreamId }) => void;
 }
 
 interface ClientToServerEvents {
@@ -30,6 +32,8 @@ interface ClientToServerEvents {
   joinStream: (streamId: StreamId) => void;
   leaveStream: (streamId: StreamId) => void;
   updateStreamLiveStatus: (data: { streamId: StreamId; isLive: boolean }) => void;
+  joinChat: (streamId: StreamId) => void;
+  leaveChat: (streamId: StreamId) => void;
   sendChatMessage: (data: { streamId: StreamId; content: string }) => void;
   requestChatHistory: (streamId: StreamId) => void;
 }
@@ -57,6 +61,7 @@ export class StreamServer {
   }
 
   private setupRoutes() {
+    // Routes remain unchanged
     this.app.get('/health', (_, res) => {
       res.json({ status: 'ok', timestamp: new Date().toISOString() });
     });
@@ -71,6 +76,10 @@ export class StreamServer {
     });
   }
 
+  private getChatRoomId(streamId: string): string {
+    return `chat:${streamId}`;
+  }
+
   private setupSocketServer() {
     this.io.on('connection', (socket: Socket) => {
       const userId = socket.handshake.query.userId as string;
@@ -82,6 +91,7 @@ export class StreamServer {
 
       this.connectedUsers.set(userId, socket.id);
 
+      // Stream-related events remain largely unchanged
       socket.on('startStream', async (stream: Stream) => {
         try {
           if (stream.creator !== userId) {
@@ -127,6 +137,7 @@ export class StreamServer {
         }
       });
 
+      // Stream room management
       socket.on('joinStream', async (streamId: StreamId) => {
         try {
           const stream = await this.redisManager.getStream(streamId);
@@ -134,7 +145,7 @@ export class StreamServer {
           if (stream.creator === userId) throw new Error('Cannot join own stream');
       
           await this.redisManager.updateStreamRole(streamId, userId, 'audience');
-          socket.join(streamId);
+          socket.join(streamId);  // Join stream room
       
           const roomSize = this.io.sockets.adapter.rooms.get(streamId)?.size || 0;
           await this.redisManager.updateStreamData(streamId, stream => ({
@@ -142,14 +153,8 @@ export class StreamServer {
             viewers: roomSize
           }));
       
-          // Send all necessary data
           this.io.to(streamId).emit('viewerJoined', { streamId, count: roomSize });
           socket.emit('roleChanged', { streamId, role: 'audience' });
-          
-          // Send chat history
-          const messages = await this.redisManager.getMessages(streamId);
-          socket.emit('chatHistoryReceived', { streamId, messages });
-      
         } catch (error) {
           this.handleError(socket, error);
         }
@@ -158,7 +163,7 @@ export class StreamServer {
       socket.on('leaveStream', async (streamId: StreamId) => {
         try {
           await this.redisManager.updateStreamRole(streamId, userId, null);
-          socket.leave(streamId);
+          socket.leave(streamId);  // Leave stream room
 
           const roomSize = this.io.sockets.adapter.rooms.get(streamId)?.size || 0;
           await this.redisManager.updateStreamData(streamId, stream => ({
@@ -173,6 +178,35 @@ export class StreamServer {
         }
       });
 
+      // New chat room management
+      socket.on('joinChat', async (streamId: StreamId) => {
+        try {
+          const stream = await this.redisManager.getStream(streamId);
+          if (!stream) throw new Error('Stream not found');
+
+          const chatRoomId = this.getChatRoomId(streamId);
+          socket.join(chatRoomId);
+          socket.emit('chatJoined', { streamId });
+
+          // Send chat history upon joining
+          const messages = await this.redisManager.getMessages(streamId);
+          socket.emit('chatHistoryReceived', { streamId, messages });
+        } catch (error) {
+          this.handleError(socket, error);
+        }
+      });
+
+      socket.on('leaveChat', async (streamId: StreamId) => {
+        try {
+          const chatRoomId = this.getChatRoomId(streamId);
+          socket.leave(chatRoomId);
+          socket.emit('chatLeft', { streamId });
+        } catch (error) {
+          this.handleError(socket, error);
+        }
+      });
+
+      // Updated chat message handling
       socket.on('sendChatMessage', async ({ streamId, content }) => {
         try {
           const stream = await this.redisManager.getStream(streamId);
@@ -185,7 +219,10 @@ export class StreamServer {
           };
 
           await this.redisManager.addMessage(streamId, message);
-          this.io.to(streamId).emit('chatMessageReceived', { 
+          
+          // Emit to chat room specifically
+          const chatRoomId = this.getChatRoomId(streamId);
+          this.io.to(chatRoomId).emit('chatMessageReceived', { 
             streamId, 
             message 
           });

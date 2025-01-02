@@ -16,13 +16,35 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const { getMessages, sendChatMessage, requestChatHistory } = useInitializedChatStore();
+  const { 
+    getMessages, 
+    sendChatMessage, 
+    joinChatRoom,
+    leaveChatRoom,
+    isInRoom
+  } = useInitializedChatStore();
+
   const messages = getMessages(streamId);
   
-  // Request chat history when component mounts
+  // Join chat room when component mounts
   useEffect(() => {
-    requestChatHistory(streamId);
-  }, [streamId, requestChatHistory]);
+    const initializeChat = async () => {
+      try {
+        if (!isInRoom(streamId)) {
+          await joinChatRoom(streamId);
+        }
+      } catch (error) {
+        console.error('Failed to join chat room:', error);
+      }
+    };
+
+    initializeChat();
+
+    // Leave chat room when component unmounts
+    return () => {
+      leaveChatRoom(streamId);
+    };
+  }, [streamId, joinChatRoom, leaveChatRoom, isInRoom]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -116,4 +138,3 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
 };
 
 export default ChatWindow;
-
