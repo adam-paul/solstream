@@ -4,6 +4,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useStreamStore } from '@/lib/StreamStore';
 import { truncateWalletAddress, getWalletColor } from '@/lib/walletUtils';
+import type { ChatMessage } from '@/types/stream';
+
+// Properly typed selector
+const getStreamMessages = (streamId: string) => (state: ReturnType<typeof useStreamStore.getState>) => 
+  state.messages.get(streamId) || [];
 
 interface ChatWindowProps {
   streamId: string;
@@ -11,14 +16,12 @@ interface ChatWindowProps {
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
-  const { messages } = useStreamStore();
-  const streamMessages = useStreamStore(state => state.messages.get(streamId) || []);
+  const streamMessages = useStreamStore(getStreamMessages(streamId));
+  const { isInitialized, sendChatMessage, requestChatHistory } = useStreamStore();
   const { connected, publicKey } = useWallet();
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isInitialized, sendChatMessage, requestChatHistory } = useStreamStore();
   
-  // Request chat history when component mounts
   useEffect(() => {
     if (isInitialized) {
       requestChatHistory(streamId);
@@ -28,7 +31,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [streamMessages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,7 +59,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
     <div className="bg-gray-900 border border-gray-800 rounded-lg">
       {/* Messages Container */}
       <div className="h-[300px] overflow-y-auto p-4 space-y-2">
-        {streamMessages.map((message, index) => (
+        {streamMessages.map((message: ChatMessage, index: number) => (
           <div 
             key={`${message.timestamp}-${index}`}
             className="group flex items-start gap-2 hover:bg-gray-800/50 p-1 rounded"
@@ -117,4 +120,3 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
 };
 
 export default ChatWindow;
-
