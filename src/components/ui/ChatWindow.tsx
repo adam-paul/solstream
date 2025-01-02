@@ -1,10 +1,10 @@
+// src/components/ui/ChatWindow.tsx
 'use client'
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useStreamStore } from '@/lib/StreamStore';
+import { useInitializedChatStore } from '@/lib/ChatStore';
 import { truncateWalletAddress, getWalletColor } from '@/lib/walletUtils';
-import { ChatMessage } from '@/types/stream';
 
 interface ChatWindowProps {
   streamId: string;
@@ -12,18 +12,12 @@ interface ChatWindowProps {
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
-  const EMPTY_MESSAGES: ChatMessage[] = [];
-  const { messages } = useStreamStore();
-  const streamMessages = useStreamStore(state => {
-    console.log('ChatWindow: Getting messages for stream:', streamId);
-    const messages = state.messages.get(streamId);
-    console.log('ChatWindow: Current messages:', messages);
-    return messages ?? EMPTY_MESSAGES;
-  }); 
   const { connected, publicKey } = useWallet();
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { sendChatMessage, requestChatHistory } = useStreamStore();
+  
+  const { getMessages, sendChatMessage, requestChatHistory } = useInitializedChatStore();
+  const messages = getMessages(streamId);
   
   // Request chat history when component mounts
   useEffect(() => {
@@ -61,7 +55,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
     <div className="bg-gray-900 border border-gray-800 rounded-lg">
       {/* Messages Container */}
       <div className="h-[300px] overflow-y-auto p-4 space-y-2">
-        {streamMessages.map((message, index) => (
+        {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
             className="group flex items-start gap-2 hover:bg-gray-800/50 p-1 rounded"

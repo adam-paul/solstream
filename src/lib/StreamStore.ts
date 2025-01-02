@@ -4,14 +4,13 @@ import React from 'react';
 import { create } from 'zustand';
 import { socketService } from './socketService';
 import { sessionManager } from './sessionManager';
-import { Stream, ChatMessage } from '@/types/stream';
+import { Stream } from '@/types/stream';
 
 type UserRole = 'host' | 'audience' | null;
 
 interface StreamState {
   streams: Map<string, Stream>;
   userRoles: Map<string, UserRole>;
-  messages: Map<string, ChatMessage[]>;
   isInitialized: boolean;
   
   // Core state accessors
@@ -28,10 +27,6 @@ interface StreamState {
   setStreamLiveStatus: (streamId: string, isLive: boolean) => void;
   startStream: (streamData: Omit<Stream, 'id'>) => Promise<string>;
   endStream: (id: string) => void;
-  
-  // Chat actions
-  sendChatMessage: (streamId: string, content: string) => void;
-  requestChatHistory: (streamId: string) => void;
   
   // Store initialization
   initializeStore: () => Promise<void>;
@@ -69,14 +64,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
     return Array.from(state.streams.values()).filter(stream => 
       state.userRoles.get(stream.id) === 'host' || stream.creator === sessionManager.getUserId()
     );
-  },
-
-  sendChatMessage: (streamId, content) => {
-    socketService.sendChatMessage({ streamId, content });
-  },
-
-  requestChatHistory: (streamId) => {
-    socketService.requestChatHistory(streamId);
   },
 
   setStreamLiveStatus: (streamId: string, isLive: boolean) => {
@@ -121,14 +108,11 @@ const useStreamStore = create<StreamState>()((set, get) => ({
         set(state => {
           const newStreams = new Map(state.streams);
           const newUserRoles = new Map(state.userRoles);
-          const newMessages = new Map(state.messages);
           newStreams.delete(id);
           newUserRoles.delete(id);
-          newMessages.delete(id);
           return { 
             streams: newStreams, 
             userRoles: newUserRoles,
-            messages: newMessages
           };
         });
       });
@@ -154,26 +138,6 @@ const useStreamStore = create<StreamState>()((set, get) => ({
             return { streams: newStreams };
           }
           return state;
-        });
-      });
-
-      socketService.onChatMessageReceived(({ streamId, message }) => {
-        console.log('StreamStore: Updating messages with:', message);
-        set(state => {
-          const newMessages = new Map(state.messages);
-          const streamMessages = newMessages.get(streamId) || [];
-          const updatedMessages = [...streamMessages, message];
-          console.log('StreamStore: New messages array:', updatedMessages);
-          newMessages.set(streamId, updatedMessages);
-          return { messages: newMessages };
-        });
-      });
-
-      socketService.onChatHistoryReceived(({ streamId, messages }) => {
-        set(state => {
-          const newMessages = new Map(state.messages);
-          newMessages.set(streamId, messages);
-          return { messages: newMessages };
         });
       });
 
