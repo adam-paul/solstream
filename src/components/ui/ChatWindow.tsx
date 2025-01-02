@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useStreamStore } from '@/lib/StreamStore';
 import { truncateWalletAddress, getWalletColor } from '@/lib/walletUtils';
-import type { ChatMessage } from '@/types/stream';
 
 interface ChatWindowProps {
   streamId: string;
@@ -13,15 +12,18 @@ interface ChatWindowProps {
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
   const { messages } = useStreamStore();
+  const streamMessages = useStreamStore(state => state.messages.get(streamId) || []);
   const { connected, publicKey } = useWallet();
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { sendChatMessage, requestChatHistory } = useStreamStore();
+  const { isInitialized, sendChatMessage, requestChatHistory } = useStreamStore();
   
   // Request chat history when component mounts
   useEffect(() => {
-    requestChatHistory(streamId);
-  }, [streamId, requestChatHistory]);
+    if (isInitialized) {
+      requestChatHistory(streamId);
+    }
+  }, [streamId, isInitialized, requestChatHistory]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -39,8 +41,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
   const handleReply = (username: string) => {
     setMessageInput(prev => `@${username} ${prev}`);
   };
-
-  const streamMessages: ChatMessage[] = messages.get(streamId) || [];
 
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp);
