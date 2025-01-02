@@ -6,18 +6,24 @@ import { useStreamStore } from '@/lib/StreamStore';
 import { truncateWalletAddress, getWalletColor } from '@/lib/walletUtils';
 import type { ChatMessage } from '@/types/stream';
 
-// Properly typed selector
-const getStreamMessages = (streamId: string) => (state: ReturnType<typeof useStreamStore.getState>) => 
-  state.messages.get(streamId) || [];
-
 interface ChatWindowProps {
   streamId: string;
   isHost?: boolean;
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
-  const streamMessages = useStreamStore(getStreamMessages(streamId));
-  const { isInitialized, sendChatMessage, requestChatHistory } = useStreamStore();
+  const { 
+    messages: storeMessages,
+    isInitialized,
+    sendChatMessage, 
+    requestChatHistory 
+  } = useStreamStore(state => ({
+    messages: state.messages.get(streamId) || [],
+    isInitialized: state.isInitialized,
+    sendChatMessage: state.sendChatMessage,
+    requestChatHistory: state.requestChatHistory
+  }));
+
   const { connected, publicKey } = useWallet();
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -28,10 +34,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
     }
   }, [streamId, isInitialized, requestChatHistory]);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [streamMessages]);
+  }, [storeMessages]);
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +64,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
     <div className="bg-gray-900 border border-gray-800 rounded-lg">
       {/* Messages Container */}
       <div className="h-[300px] overflow-y-auto p-4 space-y-2">
-        {streamMessages.map((message: ChatMessage, index: number) => (
+        {storeMessages.map((message: ChatMessage, index: number) => (
           <div 
             key={`${message.timestamp}-${index}`}
             className="group flex items-start gap-2 hover:bg-gray-800/50 p-1 rounded"
