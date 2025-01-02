@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useStreamStore } from '@/lib/StreamStore';
 import { truncateWalletAddress, getWalletColor } from '@/lib/walletUtils';
+import { ChatMessage } from '@/types/stream';
 
 interface ChatWindowProps {
   streamId: string;
@@ -11,8 +12,12 @@ interface ChatWindowProps {
 }
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
+  const EMPTY_MESSAGES: ChatMessage[] = [];
   const { messages } = useStreamStore();
-  const streamMessages = useStreamStore(state => state.messages.get(streamId) || []);
+  const streamMessages = useStreamStore(state => {
+    const messages = state.messages.get(streamId);
+    return messages ?? EMPTY_MESSAGES;
+  });  
   const { connected, publicKey } = useWallet();
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
