@@ -13,3 +13,9 @@ export interface Stream {
   description?: string;
   isLive: boolean;
 }
+
+export interface ChatMessage {
+  username: string;
+  content: string;
+  timestamp: number;
+}

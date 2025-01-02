@@ -3,6 +3,7 @@
 import { io, Socket } from 'socket.io-client';
 import { Stream } from '@/types/stream';
 import { sessionManager } from './sessionManager';
+import { ChatMessage } from '@/types/stream';
 
 interface ServerToClientEvents {
   streamStarted: (stream: Stream) => void;
@@ -12,6 +13,8 @@ interface ServerToClientEvents {
   roleChanged: (data: { streamId: string; role: 'host' | 'audience' | null }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
   streamLiveStatusChanged: (data: { streamId: string; isLive: boolean }) => void;
+  chatMessageReceived: (data: { streamId: string; message: ChatMessage }) => void;
+  chatHistoryReceived: (data: { streamId: string; messages: ChatMessage[] }) => void;
 }
 
 interface ClientToServerEvents {
@@ -20,6 +23,8 @@ interface ClientToServerEvents {
   joinStream: (streamId: string) => void;
   leaveStream: (streamId: string) => void;
   updateStreamLiveStatus: (data: { streamId: string; isLive: boolean }) => void;
+  sendChatMessage: (data: { streamId: string; content: string }) => void;
+  requestChatHistory: (streamId: string) => void;
 }
 
 export class SocketService {
@@ -90,6 +95,32 @@ export class SocketService {
       throw new Error('Socket not connected');
     }
     this.socket.emit('leaveStream', streamId);
+  }
+
+  sendChatMessage(data: { streamId: string; content: string }): void {
+    if (!this.socket?.connected) {
+      throw new Error('Socket not connected');
+    }
+    this.socket.emit('sendChatMessage', data);
+  }
+
+  requestChatHistory(streamId: string): void {
+    if (!this.socket?.connected) {
+      throw new Error('Socket not connected');
+    }
+    this.socket.emit('requestChatHistory', streamId);
+  }
+
+  onChatMessageReceived(callback: ServerToClientEvents['chatMessageReceived']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('chatMessageReceived', callback);
+    return () => this.socket?.off('chatMessageReceived', callback);
+  }
+
+  onChatHistoryReceived(callback: ServerToClientEvents['chatHistoryReceived']): () => void {
+    if (!this.socket) return () => {};
+    this.socket.on('chatHistoryReceived', callback);
+    return () => this.socket?.off('chatHistoryReceived', callback);
   }
 
   updateStreamLiveStatus(data: { streamId: string; isLive: boolean }): void {

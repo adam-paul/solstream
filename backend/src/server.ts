@@ -5,7 +5,7 @@ import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import dotenv from 'dotenv';
 import { RedisManager } from './redis';
-import { Stream } from './types';
+import { Stream, ChatMessage } from './types';
 
 dotenv.config();
 
@@ -20,6 +20,8 @@ interface ServerToClientEvents {
   roleChanged: (data: { streamId: StreamId; role: 'host' | 'audience' | null }) => void;
   error: (error: { message: string; statusCode?: number }) => void;
   streamLiveStatusChanged: (data: { streamId: StreamId; isLive: boolean }) => void;
+  chatMessageReceived: (data: { streamId: StreamId; message: ChatMessage }) => void;
+  chatHistoryReceived: (data: { streamId: StreamId; messages: ChatMessage[] }) => void;
 }
 
 interface ClientToServerEvents {
@@ -28,6 +30,8 @@ interface ClientToServerEvents {
   joinStream: (streamId: StreamId) => void;
   leaveStream: (streamId: StreamId) => void;
   updateStreamLiveStatus: (data: { streamId: StreamId; isLive: boolean }) => void;
+  sendChatMessage: (data: { streamId: StreamId; content: string }) => void;
+  requestChatHistory: (streamId: StreamId) => void;
 }
 
 export class StreamServer {
@@ -128,19 +132,24 @@ export class StreamServer {
           const stream = await this.redisManager.getStream(streamId);
           if (!stream) throw new Error('Stream not found');
           if (stream.creator === userId) throw new Error('Cannot join own stream');
-
+      
           await this.redisManager.updateStreamRole(streamId, userId, 'audience');
           socket.join(streamId);
-
+      
           const roomSize = this.io.sockets.adapter.rooms.get(streamId)?.size || 0;
           await this.redisManager.updateStreamData(streamId, stream => ({
             ...stream,
             viewers: roomSize
           }));
-
+      
+          // Send all necessary data
           this.io.to(streamId).emit('viewerJoined', { streamId, count: roomSize });
           socket.emit('roleChanged', { streamId, role: 'audience' });
-
+          
+          // Send chat history
+          const messages = await this.redisManager.getMessages(streamId);
+          socket.emit('chatHistoryReceived', { streamId, messages });
+      
         } catch (error) {
           this.handleError(socket, error);
         }
@@ -159,6 +168,39 @@ export class StreamServer {
 
           this.io.to(streamId).emit('viewerLeft', { streamId, count: roomSize });
           socket.emit('roleChanged', { streamId, role: null });
+        } catch (error) {
+          this.handleError(socket, error);
+        }
+      });
+
+      socket.on('sendChatMessage', async ({ streamId, content }) => {
+        try {
+          const stream = await this.redisManager.getStream(streamId);
+          if (!stream) throw new Error('Stream not found');
+
+          const message: ChatMessage = {
+            username: userId,
+            content,
+            timestamp: Date.now()
+          };
+
+          await this.redisManager.addMessage(streamId, message);
+          this.io.to(streamId).emit('chatMessageReceived', { 
+            streamId, 
+            message 
+          });
+        } catch (error) {
+          this.handleError(socket, error);
+        }
+      });
+
+      socket.on('requestChatHistory', async (streamId) => {
+        try {
+          const messages = await this.redisManager.getMessages(streamId);
+          socket.emit('chatHistoryReceived', { 
+            streamId, 
+            messages 
+          });
         } catch (error) {
           this.handleError(socket, error);
         }

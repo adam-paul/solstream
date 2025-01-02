@@ -1,7 +1,7 @@
 // backend/src/redis.ts
 
 import Redis from 'ioredis';
-import { Stream } from './types';
+import { Stream, ChatMessage } from './types';
 
 interface StreamMetadata {
   lastUpdated: number;
@@ -12,6 +12,8 @@ class RedisManager {
   private redis: Redis;
   private readonly STREAM_KEY = 'streams';
   private readonly STREAM_METADATA_KEY = 'stream_metadata';
+  private readonly STREAM_MESSAGES_KEY = 'stream_messages';
+  private readonly MAX_MESSAGES = 20;
 
   constructor() {
     this.redis = new Redis({
@@ -56,6 +58,7 @@ class RedisManager {
       const pipeline = this.redis.pipeline();
       pipeline.hdel(this.STREAM_KEY, streamId);
       pipeline.hdel(this.STREAM_METADATA_KEY, streamId);
+      pipeline.del(`${this.STREAM_MESSAGES_KEY}:${streamId}`);
       await pipeline.exec();
     }, 'Failed to remove stream');
   }
@@ -115,6 +118,34 @@ class RedisManager {
       );
     }, 'Failed to update role');
   }
+
+    // Chat Methods
+    async addMessage(streamId: string, message: ChatMessage): Promise<void> {
+      await this.execCommand(async () => {
+        const key = `${this.STREAM_MESSAGES_KEY}:${streamId}`;
+        
+        // Add new message
+        await this.redis.lpush(key, JSON.stringify(message));
+        
+        // Trim to last 20 messages
+        await this.redis.ltrim(key, 0, this.MAX_MESSAGES - 1);
+      }, 'Failed to add message');
+    }
+  
+    async getMessages(streamId: string): Promise<ChatMessage[]> {
+      return this.execCommand(async () => {
+        const key = `${this.STREAM_MESSAGES_KEY}:${streamId}`;
+        const messages = await this.redis.lrange(key, 0, -1);
+        return messages.map(msg => JSON.parse(msg));
+      }, 'Failed to fetch messages');
+    }
+  
+    async clearMessages(streamId: string): Promise<void> {
+      await this.execCommand(async () => {
+        const key = `${this.STREAM_MESSAGES_KEY}:${streamId}`;
+        await this.redis.del(key);
+      }, 'Failed to clear messages');
+    }
 
   async shutdown(): Promise<void> {
     await this.redis.quit();
