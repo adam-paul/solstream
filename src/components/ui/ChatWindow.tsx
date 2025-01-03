@@ -16,7 +16,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   const { getMessages, sendChatMessage } = useChatStore();
   const messages = getMessages(streamId);
 
-  // Initialize store and request history on mount
+  // Request history on mount
   useEffect(() => {
     console.log('[ChatWindow] Requesting message history');
     socketService.requestChatHistory(streamId);

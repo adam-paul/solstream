@@ -22,8 +22,6 @@ interface ServerToClientEvents {
   streamLiveStatusChanged: (data: { streamId: StreamId; isLive: boolean }) => void;
   chatMessageReceived: (data: { streamId: StreamId; message: ChatMessage }) => void;
   chatHistoryReceived: (data: { streamId: StreamId; messages: ChatMessage[] }) => void;
-  chatJoined: (data: { streamId: StreamId }) => void;
-  chatLeft: (data: { streamId: StreamId }) => void;
 }
 
 interface ClientToServerEvents {
@@ -32,8 +30,6 @@ interface ClientToServerEvents {
   joinStream: (streamId: StreamId) => void;
   leaveStream: (streamId: StreamId) => void;
   updateStreamLiveStatus: (data: { streamId: StreamId; isLive: boolean }) => void;
-  joinChat: (streamId: StreamId) => void;
-  leaveChat: (streamId: StreamId) => void;
   sendChatMessage: (data: { streamId: StreamId; content: string }) => void;
   requestChatHistory: (streamId: StreamId) => void;
 }
@@ -74,10 +70,6 @@ export class StreamServer {
         res.status(500).json({ error: 'Failed to fetch streams' });
       }
     });
-  }
-
-  private getChatRoomId(streamId: string): string {
-    return `chat:${streamId}`;
   }
 
   private setupSocketServer() {
@@ -178,54 +170,21 @@ export class StreamServer {
         }
       });
 
-      // New chat room management
-      socket.on('joinChat', async (streamId: StreamId) => {
-        try {
-          const stream = await this.redisManager.getStream(streamId);
-          if (!stream) throw new Error('Stream not found');
-
-          const chatRoomId = this.getChatRoomId(streamId);
-          socket.join(chatRoomId);
-          socket.emit('chatJoined', { streamId });
-
-          // Send chat history upon joining
-          const messages = await this.redisManager.getMessages(streamId);
-          socket.emit('chatHistoryReceived', { streamId, messages });
-        } catch (error) {
-          this.handleError(socket, error);
-        }
-      });
-
-      socket.on('leaveChat', async (streamId: StreamId) => {
-        try {
-          const chatRoomId = this.getChatRoomId(streamId);
-          socket.leave(chatRoomId);
-          socket.emit('chatLeft', { streamId });
-        } catch (error) {
-          this.handleError(socket, error);
-        }
-      });
-
       // Updated chat message handling
       socket.on('sendChatMessage', async ({ streamId, content }) => {
         try {
           const stream = await this.redisManager.getStream(streamId);
           if (!stream) throw new Error('Stream not found');
-
+      
           const message: ChatMessage = {
             username: userId,
             content,
             timestamp: Date.now()
           };
-
+      
           await this.redisManager.addMessage(streamId, message);
           
-          // Emit to chat room specifically
-          const chatRoomId = this.getChatRoomId(streamId);
-          this.io.to(chatRoomId).emit('chatMessageReceived', { 
-            streamId, 
-            message 
-          });
+          this.io.emit('chatMessageReceived', { streamId, message });
         } catch (error) {
           this.handleError(socket, error);
         }
