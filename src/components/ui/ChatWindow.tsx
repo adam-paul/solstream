@@ -1,50 +1,31 @@
 // src/components/ui/ChatWindow.tsx
 'use client'
 
+// ChatWindow.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
-import { useInitializedChatStore } from '@/lib/ChatStore';
+import { useChatStore } from '@/lib/ChatStore';
+import { socketService } from '@/lib/socketService';
 import { truncateWalletAddress, getWalletColor } from '@/lib/walletUtils';
 
-interface ChatWindowProps {
-  streamId: string;
-  isHost?: boolean;
-}
-
-export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
+export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   const { connected, publicKey } = useWallet();
   const [messageInput, setMessageInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
-  const { 
-    getMessages, 
-    sendChatMessage, 
-    joinChatRoom,
-    leaveChatRoom,
-    isInRoom
-  } = useInitializedChatStore();
-
+  const { getMessages, sendChatMessage } = useChatStore();
   const messages = getMessages(streamId);
-  
-  // Join chat room when component mounts
+
+  // Initialize store and request history on mount
   useEffect(() => {
-    const initializeChat = async () => {
-      try {
-        if (!isInRoom(streamId)) {
-          await joinChatRoom(streamId);
-        }
-      } catch (error) {
-        console.error('Failed to join chat room:', error);
-      }
-    };
-
-    initializeChat();
-
-    // Leave chat room when component unmounts
-    return () => {
-      leaveChatRoom(streamId);
-    };
-  }, [streamId, joinChatRoom, leaveChatRoom, isInRoom]);
+    console.log('[ChatWindow] Initializing for stream:', streamId);
+    useChatStore.getState().initializeStore()
+      .then(() => {
+        console.log('[ChatWindow] Requesting message history');
+        socketService.requestChatHistory(streamId);
+      })
+      .catch(console.error);
+  }, [streamId]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -55,6 +36,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({ streamId }) => {
     e.preventDefault();
     if (!connected || !messageInput.trim() || !publicKey) return;
 
+    console.log('[ChatWindow] Sending message');
     sendChatMessage(streamId, messageInput.trim());
     setMessageInput('');
   };
