@@ -51,7 +51,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   return (
     <div className="bg-gray-900">
       {/* Messages Container */}
-      <div className="p-4 space-y-3">
+      <div className="h-[480px] overflow-y-auto p-4 space-y-3">
         {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
@@ -94,7 +94,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="type a message..."
-              className="flex-1 bg-transparent text-white rounded px-3 py-2 border border-emerald-400 focus:outline-none focus:border-blue-500"
+              className="flex-1 bg-transparent text-white rounded px-3 py-2 border border-blue-500 focus:outline-none focus:border-emerald-400"
             />
             <button
               type="submit"
