@@ -18,13 +18,8 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
 
   // Initialize store and request history on mount
   useEffect(() => {
-    console.log('[ChatWindow] Initializing for stream:', streamId);
-    useChatStore.getState().initializeStore()
-      .then(() => {
-        console.log('[ChatWindow] Requesting message history');
-        socketService.requestChatHistory(streamId);
-      })
-      .catch(console.error);
+    console.log('[ChatWindow] Requesting message history');
+    socketService.requestChatHistory(streamId);
   }, [streamId]);
 
   // Auto-scroll to bottom when new messages arrive
