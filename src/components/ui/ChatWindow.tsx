@@ -1,7 +1,6 @@
 // src/components/ui/ChatWindow.tsx
 'use client'
 
-// ChatWindow.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { useChatStore } from '@/lib/ChatStore';
@@ -46,38 +45,41 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
     return date.toLocaleTimeString('en-US', { 
       hour12: false,
       hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+      minute: '2-digit'
     });
   };
 
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-lg">
+    <div className="bg-gray-900">
       {/* Messages Container */}
-      <div className="h-[300px] overflow-y-auto p-4 space-y-2">
+      <div className="h-[300px] overflow-y-auto p-4 space-y-3">
         {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
-            className="group flex items-start gap-2 hover:bg-gray-800/50 p-1 rounded"
+            className="space-y-1"
           >
-            <span className="text-gray-500 text-sm">
-              {formatTimestamp(message.timestamp)}
-            </span>
-            <span 
-              style={{ color: getWalletColor(message.username) }}
-              className="font-medium"
-            >
-              {message.username}
-            </span>
-            <span className="text-white break-words flex-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-xs">
+                  {formatTimestamp(message.timestamp)}
+                </span>
+                <span 
+                  style={{ backgroundColor: getWalletColor(message.username) }}
+                  className="px-2 py-0.5 rounded text-sm text-black"
+                >
+                  {message.username}
+                </span>
+              </div>
+              <button
+                onClick={() => handleReply(message.username)}
+                className="text-gray-500 text-sm"
+              >
+                [reply]
+              </button>
+            </div>
+            <div className="bg-gray-800 rounded p-2 break-words text-white">
               {message.content}
-            </span>
-            <button
-              onClick={() => handleReply(message.username)}
-              className="text-gray-500 hover:text-gray-300 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              [reply]
-            </button>
+            </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
@@ -86,7 +88,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
       {/* Input Area */}
       <form 
         onSubmit={handleSendMessage}
-        className="border-t border-gray-800 p-4"
+        className="p-4 bg-gray-800"
       >
         {connected ? (
           <div className="flex gap-2">
@@ -95,7 +97,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="type a message..."
-              className="flex-1 bg-gray-800 text-white rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 bg-gray-900 text-white rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
               type="submit"
