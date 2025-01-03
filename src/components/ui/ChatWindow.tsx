@@ -51,7 +51,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   return (
     <div className="bg-gray-900">
       {/* Messages Container */}
-      <div className="h-[480px] overflow-y-auto p-4 space-y-3">
+      <div className="min-h-[120px] max-h-[480px] h-auto overflow-y-auto p-4 space-y-3">
         {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
