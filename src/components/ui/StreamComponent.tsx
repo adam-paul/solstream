@@ -83,14 +83,14 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title, isLi
               onClick={handleGoLive}
               className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg font-bold"
             >
-              [go live]
+              go live
             </button>
           )}
           <button 
             onClick={handleEndStream}
             className="bg-red-500 hover:bg-red-600 px-4 py-2 rounded-lg font-bold"
           >
-            [end stream]
+            end stream
           </button>
         </div>
       </div>

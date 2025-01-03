@@ -1,7 +1,9 @@
 // src/lib/walletUtils.ts
 
-export const truncateWalletAddress = (address: string) => 
-  `${address.slice(0, 6)}...`;
+import { PublicKey } from '@solana/web3.js';
+
+export const truncateWalletAddress = (address: PublicKey) => 
+  `${address.toString().slice(0, 6)}...`;
 
 export const getWalletColor = (address: string): string => {
   // Get a number from first 6 chars of address

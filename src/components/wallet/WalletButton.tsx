@@ -22,7 +22,7 @@ export const WalletButton = () => {
       className="text-white hover:text-gray-300 text-base"
     >
       {connected && publicKey 
-        ? `[${truncateWalletAddress(publicKey.toString())}]`
+        ? `[${truncateWalletAddress(publicKey)}]`
         : '[connect wallet]'
       }
     </button>

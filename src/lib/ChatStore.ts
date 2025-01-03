@@ -7,7 +7,7 @@ interface ChatState {
   messages: Map<string, ChatMessage[]>;
   cleanupFns: (() => void)[];
   getMessages: (streamId: string) => ChatMessage[];
-  sendChatMessage: (streamId: string, content: string) => void;
+  sendChatMessage: (streamId: string, content: string, username: string) => void;
   initializeStore: () => Promise<void>;
 }
 
@@ -19,9 +19,9 @@ export const useChatStore = create<ChatState>()((set, get) => ({
     return get().messages.get(streamId) ?? [];
   },
 
-  sendChatMessage: (streamId, content) => {
+  sendChatMessage: (streamId, content, username) => {
     console.log('[ChatStore] Sending message to:', streamId);
-    socketService.sendChatMessage({ streamId, content });
+    socketService.sendChatMessage({ streamId, content, username });
   },
 
   initializeStore: async () => {

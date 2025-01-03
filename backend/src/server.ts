@@ -30,7 +30,7 @@ interface ClientToServerEvents {
   joinStream: (streamId: StreamId) => void;
   leaveStream: (streamId: StreamId) => void;
   updateStreamLiveStatus: (data: { streamId: StreamId; isLive: boolean }) => void;
-  sendChatMessage: (data: { streamId: StreamId; content: string }) => void;
+  sendChatMessage: (data: { streamId: StreamId; content: string; username: string }) => void;
   requestChatHistory: (streamId: StreamId) => void;
 }
 
@@ -171,13 +171,13 @@ export class StreamServer {
       });
 
       // Updated chat message handling
-      socket.on('sendChatMessage', async ({ streamId, content }) => {
+      socket.on('sendChatMessage', async ({ streamId, content, username }) => {
         try {
           const stream = await this.redisManager.getStream(streamId);
           if (!stream) throw new Error('Stream not found');
       
           const message: ChatMessage = {
-            username: userId,
+            username,
             content,
             timestamp: Date.now()
           };

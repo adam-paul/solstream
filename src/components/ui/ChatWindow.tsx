@@ -30,9 +30,10 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
     if (!connected || !messageInput.trim() || !publicKey) return;
+    const username = truncateWalletAddress(publicKey);
 
     console.log('[ChatWindow] Sending message');
-    sendChatMessage(streamId, messageInput.trim());
+    sendChatMessage(streamId, messageInput.trim(), username);
     setMessageInput('');
   };
 
@@ -66,7 +67,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
               style={{ color: getWalletColor(message.username) }}
               className="font-medium"
             >
-              {truncateWalletAddress(message.username)}
+              {message.username}
             </span>
             <span className="text-white break-words flex-1">
               {message.content}

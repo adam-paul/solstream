@@ -23,7 +23,7 @@ interface ClientToServerEvents {
   joinStream: (streamId: string) => void;
   leaveStream: (streamId: string) => void;
   updateStreamLiveStatus: (data: { streamId: string; isLive: boolean }) => void;
-  sendChatMessage: (data: { streamId: string; content: string }) => void;
+  sendChatMessage: (data: { streamId: string; content: string; username: string }) => void;
   requestChatHistory: (streamId: string) => void;
 }
 
@@ -99,7 +99,7 @@ export class SocketService {
   }
 
   // Chat methods
-  sendChatMessage(data: { streamId: string; content: string }): void {
+  sendChatMessage(data: { streamId: string; content: string; username: string }): void {
     if (!this.socket?.connected) {
       throw new Error('Socket not connected');
     }
