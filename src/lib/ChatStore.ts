@@ -5,6 +5,7 @@ import { ChatMessage } from '@/types/stream';
 
 interface ChatState {
   messages: Map<string, ChatMessage[]>;
+  cleanupFns: (() => void)[];
   getMessages: (streamId: string) => ChatMessage[];
   sendChatMessage: (streamId: string, content: string) => void;
   initializeStore: () => Promise<void>;
@@ -12,6 +13,7 @@ interface ChatState {
 
 export const useChatStore = create<ChatState>()((set, get) => ({
   messages: new Map(),
+  cleanupFns: [],
 
   getMessages: (streamId) => {
     return get().messages.get(streamId) ?? [];
@@ -24,11 +26,14 @@ export const useChatStore = create<ChatState>()((set, get) => ({
 
   initializeStore: async () => {
     try {
-      console.log('[ChatStore] Initializing socket connection...');
-      await socketService.connect();
-      
-      // Set up our message listeners
-      socketService.onChatMessageReceived(({ streamId, message }) => {
+      // Clean up any existing listeners
+      get().cleanupFns.forEach(cleanup => cleanup());
+
+      // Create new array for new cleanup functions
+      const newCleanupFns = [];
+
+      // Add cleanup function to our array
+      newCleanupFns.push(socketService.onChatMessageReceived(({ streamId, message }) => {
         console.log('[ChatStore] Received new message for stream:', streamId);
         set(state => {
           const newMessages = new Map(state.messages);
@@ -36,16 +41,19 @@ export const useChatStore = create<ChatState>()((set, get) => ({
           newMessages.set(streamId, [...streamMessages, message]);
           return { messages: newMessages };
         });
-      });
+      }));
 
-      socketService.onChatHistoryReceived(({ streamId, messages }) => {
+      newCleanupFns.push(socketService.onChatHistoryReceived(({ streamId, messages }) => {
         console.log('[ChatStore] Received message history for stream:', streamId);
         set(state => {
           const newMessages = new Map(state.messages);
           newMessages.set(streamId, messages);
           return { messages: newMessages };
         });
-      });
+      }));
+
+      // Update cleanup functions
+      set({ cleanupFns: newCleanupFns });
 
     } catch (error) {
       console.error('[ChatStore] Failed to initialize:', error);

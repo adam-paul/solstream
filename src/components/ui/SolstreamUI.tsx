@@ -2,13 +2,12 @@
 'use client'
 
 import Image from 'next/image';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
 import { useStreamStore } from '@/lib/StreamStore';
-import { useChatStore } from '@/lib/ChatStore';
 import { WalletButton } from '@/components/wallet/WalletButton';
 
 // Maintain mock activity for UI demonstration
@@ -26,14 +25,6 @@ export default function SolstreamUI() {
 
   const { getAllStreams } = useStreamStore();
   const streams = getAllStreams();
-
-  async function initializeChatStore() {
-    await useChatStore.getState().initializeStore();
-  }
-
-  useEffect(() => {
-    initializeChatStore();
-  }, []);
 
   // Navigation handlers
   const handleStreamCreated = (streamId: string) => {

@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { socketService } from './socketService';
 import { sessionManager } from './sessionManager';
 import { Stream } from '@/types/stream';
+import { useChatStore } from './ChatStore';
 
 type UserRole = 'host' | 'audience' | null;
 
@@ -83,6 +84,9 @@ const useStreamStore = create<StreamState>()((set, get) => ({
       if (!response.ok) throw new Error('Failed to fetch streams');
       
       const streams: Stream[] = await response.json();
+
+      // Initialize chat store after stream store is ready
+      await useChatStore.getState().initializeStore();
 
       // Set up socket listeners
       socketService.onStreamStarted((stream) => {
