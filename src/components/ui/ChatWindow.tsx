@@ -15,13 +15,11 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   const { getMessages, sendChatMessage } = useChatStore();
   const messages = getMessages(streamId);
 
-  // Request history on mount
   useEffect(() => {
     console.log('[ChatWindow] Requesting message history');
     socketService.requestChatHistory(streamId);
   }, [streamId]);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -45,7 +43,8 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
     return date.toLocaleTimeString('en-US', { 
       hour12: false,
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      second: '2-digit'
     });
   };
 
@@ -56,28 +55,26 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
         {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
-            className="space-y-1"
+            className="bg-gray-800 rounded p-2 space-y-2"
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-400 text-xs">
-                  {formatTimestamp(message.timestamp)}
-                </span>
-                <span 
-                  style={{ backgroundColor: getWalletColor(message.username) }}
-                  className="px-2 py-0.5 rounded text-sm text-black"
-                >
-                  {message.username}
-                </span>
-              </div>
+            <div className="flex items-center gap-3">
+              <span 
+                style={{ backgroundColor: getWalletColor(message.username) }}
+                className="px-2 py-0.5 rounded text-sm text-black"
+              >
+                {message.username}
+              </span>
+              <span className="text-gray-400 text-xs">
+                {formatTimestamp(message.timestamp)}
+              </span>
               <button
                 onClick={() => handleReply(message.username)}
-                className="text-gray-500 text-sm"
+                className="text-gray-500 text-sm group"
               >
-                [reply]
+                [<span className="group-hover:underline">reply</span>]
               </button>
             </div>
-            <div className="bg-gray-800 rounded p-2 break-words text-white">
+            <div className="break-words text-white">
               {message.content}
             </div>
           </div>
