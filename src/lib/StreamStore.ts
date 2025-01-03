@@ -192,10 +192,11 @@ export const useInitializedStreamStore = () => {
   const store = useStreamStore();
   
   React.useEffect(() => {
-    if (!store.streams.size) {
+    if (!store.isInitialized) {
       store.initializeStore().catch(console.error);
     }
-  }, [store]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return store;
 };
