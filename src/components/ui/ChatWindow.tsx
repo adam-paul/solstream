@@ -51,7 +51,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   return (
     <div className="bg-gray-900">
       {/* Messages Container */}
-      <div className="h-[300px] overflow-y-auto p-4 space-y-3">
+      <div className="p-4 space-y-3">
         {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
@@ -69,7 +69,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
               </span>
               <button
                 onClick={() => handleReply(message.username)}
-                className="text-gray-500 text-sm group"
+                className="text-gray-400 text-sm group"
               >
                 [<span className="group-hover:underline">reply</span>]
               </button>
@@ -85,7 +85,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
       {/* Input Area */}
       <form 
         onSubmit={handleSendMessage}
-        className="p-4 bg-gray-800"
+        className="p-4"
       >
         {connected ? (
           <div className="flex gap-2">
@@ -94,14 +94,14 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="type a message..."
-              className="flex-1 bg-gray-900 text-white rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 bg-transparent text-white rounded px-3 py-2 border border-emerald-400 focus:outline-none focus:border-blue-500"
             />
             <button
               type="submit"
               disabled={!messageInput.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-emerald-400 text-black rounded hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              send
+              post
             </button>
           </div>
         ) : (
