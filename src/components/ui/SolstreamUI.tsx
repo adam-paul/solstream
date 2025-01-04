@@ -4,7 +4,7 @@
 import Image from 'next/image';
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, TrendingUp, Clock, Eye } from 'lucide-react';
+import { Search, TrendingUp, Clock, Eye, ChevronDown } from 'lucide-react';
 import StreamCreationModal from './StreamCreationModal';
 import StreamTile from './StreamTile';
 import { useStreamStore } from '@/lib/StreamStore';
@@ -22,6 +22,7 @@ export default function SolstreamUI() {
   const [sortBy, setSortBy] = useState<'featured' | 'newest' | 'viewers'>('featured');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showStreamModal, setShowStreamModal] = useState<boolean>(false);
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
 
   const { getAllStreams } = useStreamStore();
   const streams = getAllStreams();
@@ -44,7 +45,7 @@ export default function SolstreamUI() {
       case 'viewers':
         return b.viewers - a.viewers;
       default:
-        return 0; // 'featured' maintains original order
+        return 0;
     }
   });
 
@@ -64,31 +65,37 @@ export default function SolstreamUI() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
-      {/* Header Ticker */}
-      <div className="bg-yellow-400 text-black p-2 rounded-lg mb-6 overflow-hidden">
-        <div className="flex space-x-8 animate-scroll">
-          {mockActivity.map((activity, index) => (
-            <span key={index} className="whitespace-nowrap">{activity}</span>
-          ))}
+      {/* Top Navigation Bar */}
+      <div className="flex justify-between items-center px-4 py-2 mb-8">
+        <div className="flex items-center space-x-4">
+          {/* Placeholder icon - replace with actual icon later */}
+          <div className="w-6 h-6 bg-gray-700 rounded-full"></div>
+          <button className="text-white hover:font-bold transition-all">
+            [how it works]
+          </button>
         </div>
-      </div>
-
-      {/* Wallet Button */}
-      <div className="flex justify-end mb-4 px-4">
+        
+        {/* Activity Ticker */}
+        <div className="bg-yellow-400 text-black px-8 py-2 rounded-lg overflow-hidden flex-1 mx-8">
+          <div className="flex space-x-8 animate-scroll">
+            {mockActivity.map((activity, index) => (
+              <span key={index} className="whitespace-nowrap">{activity}</span>
+            ))}
+          </div>
+        </div>
+        
         <WalletButton />
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto flex flex-col items-center">
         {/* New Stream Button */}
-        <div className="text-center mb-8">
-          <button 
-            onClick={() => setShowStreamModal(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg text-lg"
-          >
-            [start a new stream]
-          </button>
-        </div>
+        <button 
+          onClick={() => setShowStreamModal(true)}
+          className="text-white hover:font-bold text-2xl mb-12 transition-all"
+        >
+          [start a new stream]
+        </button>
 
         {/* Stream Creation Modal */}
         <StreamCreationModal
@@ -97,14 +104,14 @@ export default function SolstreamUI() {
           onStreamCreated={handleStreamCreated}
         />
 
-        {/* Featured Stream */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-8">
-          <h2 className="text-2xl font-bold mb-4 text-yellow-400">Current Top Stream</h2>
-          {featuredStream ? (
-            <div 
-              className="flex items-center space-x-4 cursor-pointer"
-              onClick={() => handleStreamSelect(featuredStream.id)}
-            >
+        {/* Featured Stream Tile */}
+        {featuredStream && (
+          <div 
+            className="w-full max-w-md bg-gray-800 rounded-lg p-4 mb-8 cursor-pointer"
+            onClick={() => handleStreamSelect(featuredStream.id)}
+          >
+            <h2 className="text-xl font-bold text-yellow-400 mb-2">Current Top Stream</h2>
+            <div className="flex items-center space-x-4">
               <div className="relative w-16 h-16 bg-gray-700 rounded-full overflow-hidden">
                 <Image
                   src={featuredStream.thumbnail}
@@ -114,79 +121,80 @@ export default function SolstreamUI() {
                 />
               </div>
               <div>
-                <h3 className="text-xl">{featuredStream.title}</h3>
+                <h3 className="text-lg">{featuredStream.title}</h3>
                 <p className="text-gray-400">
                   {featuredStream.viewers} viewers • Started {new Date(featuredStream.createdAt).toLocaleString()}
                 </p>
               </div>
             </div>
-          ) : (
-            <div className="flex items-center space-x-4">
-              <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center">
-                <Eye className="text-gray-500" size={24} />
-              </div>
-              <div>
-                <h3 className="text-xl text-gray-500">No active streams</h3>
-                <p className="text-gray-400">
-                  Start streaming to be featured here
-                </p>
-              </div>
+          </div>
+        )}
+
+        {/* Search Bar */}
+        <div className="w-full max-w-xl mb-8 flex items-center justify-center space-x-2">
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder="search streams by token"
+              className="w-full bg-gray-800 rounded-lg py-2 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <Search className="absolute right-3 top-2.5 text-gray-400" size={20} />
+          </div>
+          <button className="bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg">
+            search
+          </button>
+        </div>
+
+        {/* Sort Dropdown */}
+        <div className="relative mb-6 w-full max-w-5xl">
+          <button
+            onClick={() => setShowSortDropdown(!showSortDropdown)}
+            className="bg-emerald-500 hover:bg-emerald-600 px-4 py-2 rounded-lg flex items-center space-x-2"
+          >
+            <span>sort: {sortBy}</span>
+            <ChevronDown size={16} />
+          </button>
+          
+          {showSortDropdown && (
+            <div className="absolute top-full mt-1 bg-gray-800 rounded-lg shadow-lg overflow-hidden z-10">
+              <button
+                className="w-full px-4 py-2 text-left hover:bg-gray-700 flex items-center space-x-2"
+                onClick={() => {
+                  setSortBy('featured');
+                  setShowSortDropdown(false);
+                }}
+              >
+                <TrendingUp size={16} />
+                <span>sort: featured</span>
+              </button>
+              <button
+                className="w-full px-4 py-2 text-left hover:bg-gray-700 flex items-center space-x-2"
+                onClick={() => {
+                  setSortBy('newest');
+                  setShowSortDropdown(false);
+                }}
+              >
+                <Clock size={16} />
+                <span>sort: newest</span>
+              </button>
+              <button
+                className="w-full px-4 py-2 text-left hover:bg-gray-700 flex items-center space-x-2"
+                onClick={() => {
+                  setSortBy('viewers');
+                  setShowSortDropdown(false);
+                }}
+              >
+                <Eye size={16} />
+                <span>sort: most viewers</span>
+              </button>
             </div>
           )}
         </div>
 
-        {/* Search Bar */}
-        <div className="mb-8">
-          <div className="flex space-x-2">
-            <div className="flex-1 relative">
-              <input
-                type="text"
-                placeholder="search streams by token"
-                className="w-full bg-gray-800 rounded-lg py-2 px-4 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <Search className="absolute right-3 top-2.5 text-gray-400" size={20} />
-            </div>
-          </div>
-        </div>
-
-        {/* Sort Controls */}
-        <div className="flex flex-wrap items-center gap-2 mb-6">
-          <span className="text-gray-400">sort:</span>
-          <div className="flex flex-wrap gap-2">
-            <button
-              className={`px-4 py-2 rounded-lg flex items-center ${
-                sortBy === 'featured' ? 'bg-green-500' : 'bg-gray-800'
-              }`}
-              onClick={() => setSortBy('featured')}
-            >
-              <TrendingUp className="mr-2" size={16} />
-              featured
-            </button>
-            <button
-              className={`px-4 py-2 rounded-lg flex items-center ${
-                sortBy === 'newest' ? 'bg-green-500' : 'bg-gray-800'
-              }`}
-              onClick={() => setSortBy('newest')}
-            >
-              <Clock className="mr-2" size={16} />
-              newest
-            </button>
-            <button
-              className={`px-4 py-2 rounded-lg flex items-center ${
-                sortBy === 'viewers' ? 'bg-green-500' : 'bg-gray-800'
-              }`}
-              onClick={() => setSortBy('viewers')}
-            >
-              <Eye className="mr-2" size={16} />
-              most viewers
-            </button>
-          </div>
-        </div>
-
         {/* Stream Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 w-full max-w-5xl">
           {filteredStreams.map((stream) => (
             <StreamTile
               key={stream.id}
@@ -198,4 +206,4 @@ export default function SolstreamUI() {
       </div>
     </div>
   );
-};
+}

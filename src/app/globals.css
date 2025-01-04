@@ -9,14 +9,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: rgb(12 24 36);
+    --background: rgb(18 23 28);
     --foreground: rgb(250 250 250);
   }
 }
 
 @layer base {
   body {
-    @apply bg-gray-900 text-white font-sans antialiased;
+    @apply bg-[rgb(18,23,28)] text-white font-sans antialiased;
   }
 }
 
