@@ -152,14 +152,14 @@ export default function SolstreamUI() {
               <input
                 type="text"
                 placeholder="search streams by token"
-                className="w-full bg-emerald-300 text-black placeholder-gray-700 rounded-lg py-2 px-4 pr-10 
+                className="w-full bg-green-300 text-black placeholder-gray-700 rounded-lg py-2 px-4 pr-10 
                          focus:outline-none focus:ring-2 focus:ring-white"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               <Search className="absolute right-3 top-2.5 text-gray-700" size={20} />
             </div>
-            <button className="bg-emerald-300 hover:bg-emerald-500 px-4 py-2 rounded-lg text-black">
+            <button className="bg-green-300 hover:bg-emerald-500 px-4 py-2 rounded-lg text-black">
               search
             </button>
           </div>
@@ -169,14 +169,14 @@ export default function SolstreamUI() {
             <div className="relative inline-block">
               <button
                 onClick={() => setShowSortDropdown(!showSortDropdown)}
-                className="bg-emerald-300 hover:bg-emerald-500 px-4 py-2 rounded-lg flex items-center space-x-2 text-black"
+                className="bg-green-300 hover:bg-emerald-500 px-4 py-2 rounded-lg flex items-center space-x-2 text-black"
               >
                 <span>sort: {sortBy}</span>
                 <ChevronDown size={16} />
               </button>
               
               {showSortDropdown && (
-                <div className="absolute top-full mt-1 bg-emerald-300 rounded-lg shadow-lg overflow-hidden z-10 min-w-[200px]">
+                <div className="absolute top-full mt-1 bg-green-300 rounded-lg shadow-lg overflow-hidden z-10 min-w-[200px]">
                   {[
                     { value: 'featured', icon: TrendingUp },
                     { value: 'newest', icon: Clock },

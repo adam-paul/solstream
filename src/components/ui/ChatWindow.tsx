@@ -94,12 +94,12 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="type a message..."
-              className="flex-1 bg-transparent text-white rounded px-3 py-2 border border-blue-500 focus:outline-none focus:border-emerald-400"
+              className="flex-1 bg-transparent text-white rounded px-3 py-2 border border-blue-500 focus:outline-none focus:border-green-300"
             />
             <button
               type="submit"
               disabled={!messageInput.trim()}
-              className="px-4 py-2 bg-emerald-400 text-black rounded hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-green-300 text-black rounded hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               post
             </button>
