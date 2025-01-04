@@ -16,26 +16,22 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
   isHost
 }) => {
   return (
-    <div className="flex flex-col md:flex-row md:items-start md:gap-6 w-full">
-      <div className="md:flex-[2]">
-        {isHost ? (
-          <StreamComponent 
-            streamId={stream.id} 
-            title={stream.title} 
-            isLive={stream.isLive} 
-          />
-        ) : (
-          <StreamViewer 
-            streamId={stream.id} 
-            title={stream.title} 
-          />
-        )}
-      </div>
-      <div className="mt-4 md:mt-0 md:flex-1">
-        <ChatWindow 
-          streamId={stream.id}
+    <div className="flex flex-col space-y-4">
+      {isHost ? (
+        <StreamComponent 
+          streamId={stream.id} 
+          title={stream.title} 
+          isLive={stream.isLive} 
         />
-      </div>
+      ) : (
+        <StreamViewer 
+          streamId={stream.id} 
+          title={stream.title} 
+        />
+      )}
+      <ChatWindow 
+        streamId={stream.id}
+      />
     </div>
   );
 };
