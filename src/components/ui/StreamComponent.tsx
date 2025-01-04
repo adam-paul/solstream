@@ -81,14 +81,14 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title, isLi
           {!isLive && (
             <button 
               onClick={handleGoLive}
-              className="bg-emerald-400 hover:bg-emerald-500 px-4 py-2 rounded-lg font-bold"
+              className="bg-emerald-400 hover:bg-emerald-500 px-4 py-2 rounded-lg font-bold text-black"
             >
               go live
             </button>
           )}
           <button 
             onClick={handleEndStream}
-            className="bg-red-400 hover:bg-red-600 px-4 py-2 rounded-lg font-bold"
+            className="bg-red-400 hover:bg-red-500 px-4 py-2 rounded-lg font-bold text-black"
           >
             end stream
           </button>
