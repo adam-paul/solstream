@@ -77,7 +77,7 @@ export default function SolstreamUI() {
         <div className="flex justify-between items-center py-2 mb-8">
           <div className="flex items-center space-x-4">
             <div className="w-6 h-6 bg-gray-700 rounded-full"></div>
-            <button className="text-white hover:font-bold transition-all">
+            <button className="text-white hover:font-bold">
               [how it works]
             </button>
           </div>
@@ -203,7 +203,7 @@ export default function SolstreamUI() {
           </div>
 
           {/* Stream Grid */}
-          <div className="w-full flex justify-center">
+          <div className="w-full flex">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl">
               {filteredStreams.map((stream) => (
                 <StreamTile
