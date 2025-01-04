@@ -169,7 +169,7 @@ export default function SolstreamUI() {
             <div className="relative inline-block">
               <button
                 onClick={() => setShowSortDropdown(!showSortDropdown)}
-                className="bg-green-300 hover:bg-emerald-500 px-4 py-2 rounded-lg flex items-center space-x-2 text-black"
+                className="bg-green-300 hover:bg-emerald-400 px-4 py-2 rounded-lg flex items-center space-x-2 text-black"
               >
                 <span>sort: {sortBy}</span>
                 <ChevronDown size={16} />

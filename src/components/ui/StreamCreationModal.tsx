@@ -83,7 +83,6 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
 
       const streamId = await startStream(streamData);
       
-      // Reset form
       setFormState(INITIAL_FORM_STATE);
       setSelectedImage(null);
       setShowMoreOptions(false);
@@ -111,15 +110,15 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
       className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
       onClick={handleBackdropClick}
     >
-      <div className="bg-gray-900 w-[90%] h-[90%] rounded-lg p-8 overflow-y-auto">
+      <div className="bg-gray-800 w-[90%] max-w-2xl h-[90%] rounded-lg p-8 overflow-y-auto">
         <button 
           onClick={handleModalClose}
-          className="text-blue-400 hover:text-blue-300 text-xl mb-8 w-full text-center"
+          className="text-white hover:font-bold text-2xl mb-12 transition-all"
         >
           [go back]
         </button>
 
-        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto space-y-6">
+        <form onSubmit={handleSubmit} className="max-w-xl mx-auto space-y-6">
           {/* Stream Title */}
           <div className="space-y-2">
             <label className="text-blue-400 block">stream title</label>
@@ -128,7 +127,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
               name="title"
               value={formState.title}
               onChange={handleInputChange}
-              className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-700 border border-white/10 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -136,14 +135,16 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
           {/* Ticker */}
           <div className="space-y-2">
             <label className="text-blue-400 block">ticker</label>
-            <div className="relative">
-              <span className="absolute left-3 top-3 text-gray-400">$</span>
+            <div className="relative flex">
+              <div className="bg-gray-600 border border-white/10 rounded-l px-3 flex items-center">
+                <span className="text-gray-300">$</span>
+              </div>
               <input
                 type="text"
                 name="ticker"
                 value={formState.ticker}
                 onChange={handleInputChange}
-                className="w-full bg-gray-800 rounded p-3 pl-8 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1 bg-gray-700 border border-white/10 border-l-0 rounded-r p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />
             </div>
@@ -157,7 +158,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
               name="coinAddress"
               value={formState.coinAddress}
               onChange={handleInputChange}
-              className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-700 border border-white/10 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -169,7 +170,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
               name="description"
               value={formState.description}
               onChange={handleInputChange}
-              className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-32"
+              className="w-full bg-gray-700 border border-white/10 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-32"
             />
           </div>
 
@@ -177,7 +178,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
           <div className="space-y-2">
             <label className="text-blue-400 block">image</label>
             <div 
-              className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center cursor-pointer"
+              className="border-2 border-dashed border-white/10 rounded-lg p-8 text-center cursor-pointer bg-gray-700"
               onClick={() => fileInputRef.current?.click()}
             >
               <input
@@ -188,12 +189,12 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
                 className="hidden"
               />
               <Upload className="mx-auto mb-2" size={24} />
-              <p className="text-gray-400">
+              <p className="text-gray-300">
                 {selectedImage ? selectedImage.name : 'drag and drop an image'}
               </p>
               <button
                 type="button"
-                className="mt-2 px-4 py-2 border border-gray-700 rounded-lg text-sm"
+                className="mt-2 px-4 py-2 border border-white/10 rounded-lg text-sm"
               >
                 select file
               </button>
@@ -221,7 +222,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
                   value={formState.twitterLink}
                   onChange={handleInputChange}
                   placeholder="(optional)"
-                  className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-gray-700 border border-white/10 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -234,7 +235,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
                   value={formState.telegramLink}
                   onChange={handleInputChange}
                   placeholder="(optional)"
-                  className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-gray-700 border border-white/10 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
@@ -247,7 +248,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
                   value={formState.website}
                   onChange={handleInputChange}
                   placeholder="(optional)"
-                  className="w-full bg-gray-800 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full bg-gray-700 border border-white/10 rounded p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
