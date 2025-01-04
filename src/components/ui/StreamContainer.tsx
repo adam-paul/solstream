@@ -1,4 +1,3 @@
-// src/components/ui/StreamContainer.tsx
 'use client'
 
 import React from 'react';
@@ -17,8 +16,8 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
   isHost
 }) => {
   return (
-    <div className="flex flex-col md:flex-row md:gap-4">
-      <div className="flex-1">
+    <div className="flex flex-col md:flex-row md:items-start md:gap-6 w-full">
+      <div className="md:flex-[2]">
         {isHost ? (
           <StreamComponent 
             streamId={stream.id} 
@@ -32,7 +31,7 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
           />
         )}
       </div>
-      <div className="mt-4 md:mt-0 md:w-[400px]">
+      <div className="mt-4 md:mt-0 md:flex-1">
         <ChatWindow 
           streamId={stream.id}
         />
