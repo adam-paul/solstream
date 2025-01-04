@@ -17,8 +17,8 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
   isHost
 }) => {
   return (
-    <div className="flex gap-5 h-[calc(100vh-16rem)]">
-      <div className="w-2/3">
+    <div className="flex flex-col md:flex-row gap-5 md:h-[calc(100vh-16rem)]">
+      <div className="w-full md:w-2/3">
         {isHost ? (
           <StreamComponent 
             streamId={stream.id} 
@@ -32,7 +32,7 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
           />
         )}
       </div>
-      <div className="w-1/3 h-full">
+      <div className="w-full md:w-1/3 h-[300px] md:h-full">
         <ChatWindow 
           streamId={stream.id}
         />
