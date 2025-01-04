@@ -47,7 +47,7 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
           [go back]
         </button>
 
-        <div className="w-full max-w-8xl mx-auto">
+        <div className="w-full mx-auto">
           <StreamContainer 
             stream={stream} 
             isHost={isStreamHost(stream.id)}
