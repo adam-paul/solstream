@@ -50,36 +50,38 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
 
   return (
     <div className="bg-gray-900 h-full flex flex-col">
-    {/* Messages Container */}
-    <div className="flex-1 h-0 overflow-y-auto p-4 space-y-3">
-      {messages.map((message, index) => (
-          <div 
-            key={`${message.timestamp}-${index}`}
-            className="bg-gray-800 rounded p-2 space-y-2"
-          >
-            <div className="flex items-center gap-3">
-              <span 
-                style={{ backgroundColor: getWalletColor(message.username) }}
-                className="px-2 py-0.5 rounded text-sm text-black"
-              >
-                {message.username}
-              </span>
-              <span className="text-gray-400 text-xs">
-                {formatTimestamp(message.timestamp)}
-              </span>
-              <button
-                onClick={() => handleReply(message.username)}
-                className="text-gray-400 text-sm group"
-              >
-                [<span className="group-hover:underline">reply</span>]
-              </button>
+      {/* Messages Container */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
+        <div className="p-4 space-y-3">
+          {messages.map((message, index) => (
+            <div 
+              key={`${message.timestamp}-${index}`}
+              className="bg-gray-800 rounded p-2 space-y-2"
+            >
+              <div className="flex items-center gap-3">
+                <span 
+                  style={{ backgroundColor: getWalletColor(message.username) }}
+                  className="px-2 py-0.5 rounded text-sm text-black"
+                >
+                  {message.username}
+                </span>
+                <span className="text-gray-400 text-xs">
+                  {formatTimestamp(message.timestamp)}
+                </span>
+                <button
+                  onClick={() => handleReply(message.username)}
+                  className="text-gray-400 text-sm group"
+                >
+                  [<span className="group-hover:underline">reply</span>]
+                </button>
+              </div>
+              <div className="break-words text-white">
+                {message.content}
+              </div>
             </div>
-            <div className="break-words text-white">
-              {message.content}
-            </div>
-          </div>
-        ))}
-        <div ref={messagesEndRef} />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input Area */}
