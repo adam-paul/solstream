@@ -49,10 +49,10 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   };
 
   return (
-    <div className="bg-gray-900 w-full h-full flex flex-col shrink-0">
-      {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {messages.map((message, index) => (
+    <div className="bg-gray-900 h-full flex flex-col">
+    {/* Messages Container */}
+    <div className="flex-1 h-0 overflow-y-auto p-4 space-y-3">
+      {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
             className="bg-gray-800 rounded p-2 space-y-2"
@@ -85,7 +85,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
       {/* Input Area */}
       <form 
         onSubmit={handleSendMessage}
-        className="p-4 border-t border-gray-800 shrink-0"
+        className="p-4 border-t border-gray-800 mt-auto"
       >
         {connected ? (
           <div className="flex gap-2">
