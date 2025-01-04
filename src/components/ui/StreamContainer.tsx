@@ -17,7 +17,7 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
   isHost
 }) => {
   return (
-    <div className="flex gap-4">
+    <div className="flex gap-5">
       <div className="w-2/3">
         {isHost ? (
           <StreamComponent 
