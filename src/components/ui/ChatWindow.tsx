@@ -15,11 +15,12 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   const { getMessages, sendChatMessage } = useChatStore();
   const messages = getMessages(streamId);
 
+  // Request history on mount
   useEffect(() => {
-    console.log('[ChatWindow] Requesting message history');
     socketService.requestChatHistory(streamId);
   }, [streamId]);
 
+  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -29,7 +30,6 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
     if (!connected || !messageInput.trim() || !publicKey) return;
     const username = truncateWalletAddress(publicKey);
 
-    console.log('[ChatWindow] Sending message');
     sendChatMessage(streamId, messageInput.trim(), username);
     setMessageInput('');
   };
@@ -49,34 +49,32 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
   };
 
   return (
-    <div className="bg-gray-900">
+    <div className="bg-gray-900 border border-gray-800 rounded-lg h-full md:flex md:flex-col">
       {/* Messages Container */}
-      <div className="min-h-[120px] max-h-[480px] h-auto overflow-y-auto p-4 space-y-3">
+      <div className="h-[300px] md:flex-1 md:h-0 overflow-y-auto p-4 space-y-2">
         {messages.map((message, index) => (
           <div 
             key={`${message.timestamp}-${index}`}
-            className="bg-gray-800 rounded p-2 space-y-2"
+            className="group flex items-start gap-2 hover:bg-gray-800/50 p-1 rounded"
           >
-            <div className="flex items-center gap-3">
-              <span 
-                style={{ backgroundColor: getWalletColor(message.username) }}
-                className="px-2 py-0.5 rounded text-sm text-black"
-              >
-                {message.username}
-              </span>
-              <span className="text-gray-400 text-xs">
-                {formatTimestamp(message.timestamp)}
-              </span>
-              <button
-                onClick={() => handleReply(message.username)}
-                className="text-gray-400 text-sm group"
-              >
-                [<span className="group-hover:underline">reply</span>]
-              </button>
-            </div>
-            <div className="break-words text-white">
+            <span className="text-gray-500 text-sm">
+              {formatTimestamp(message.timestamp)}
+            </span>
+            <span 
+              style={{ color: getWalletColor(message.username) }}
+              className="font-medium"
+            >
+              {message.username}
+            </span>
+            <span className="text-white break-words flex-1">
               {message.content}
-            </div>
+            </span>
+            <button
+              onClick={() => handleReply(message.username)}
+              className="text-gray-500 hover:text-gray-300 text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              [reply]
+            </button>
           </div>
         ))}
         <div ref={messagesEndRef} />
@@ -85,7 +83,7 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
       {/* Input Area */}
       <form 
         onSubmit={handleSendMessage}
-        className="p-4"
+        className="border-t border-gray-800 p-4 mt-auto"
       >
         {connected ? (
           <div className="flex gap-2">
@@ -94,14 +92,14 @@ export const ChatWindow: React.FC<{ streamId: string }> = ({ streamId }) => {
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="type a message..."
-              className="flex-1 bg-transparent text-white rounded px-3 py-2 border border-blue-500 focus:outline-none focus:border-green-300"
+              className="flex-1 bg-gray-800 text-white rounded px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <button
               type="submit"
               disabled={!messageInput.trim()}
-              className="px-4 py-2 bg-green-300 text-black rounded hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              post
+              send
             </button>
           </div>
         ) : (
