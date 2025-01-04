@@ -42,7 +42,7 @@ export default function StreamPageClient({ streamId }: StreamPageClientProps) {
       <div className="max-w-7xl mx-auto p-4">
         <button 
           onClick={() => router.push('/')}
-          className="text-white hover:font-bold text-2xl mb-12 transition-all text-center"
+          className="text-white hover:font-bold text-2xl mb-12 transition-all mx-auto"
         >
           [go back]
         </button>
