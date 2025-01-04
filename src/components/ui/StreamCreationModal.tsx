@@ -113,7 +113,7 @@ const StreamCreationModal: React.FC<StreamCreationModalProps> = ({
       <div className="bg-gray-800 w-[90%] max-w-2xl h-[90%] rounded-lg p-8 overflow-y-auto">
         <button 
           onClick={handleModalClose}
-          className="text-white hover:font-bold text-2xl mb-12 transition-all mx-auto"
+          className="text-white hover:font-bold text-2xl mb-12 transition-all mx-auto block"
         >
           [go back]
         </button>
