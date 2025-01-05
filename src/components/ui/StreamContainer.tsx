@@ -23,12 +23,15 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
           <StreamComponent 
             streamId={stream.id} 
             title={stream.title} 
+            ticker={stream.ticker}
+            coinAddress={stream.coinAddress}
             isLive={stream.isLive} 
           />
         ) : (
           <StreamViewer 
             streamId={stream.id} 
             title={stream.title} 
+            ticker={stream.ticker}
           />
         )}
       </div>

@@ -5,15 +5,17 @@ import { useRouter } from 'next/navigation';
 import { MediaDevices } from '@/types/agora';
 import { agoraService } from '@/lib/agoraService';
 import { useStreamStore } from '@/lib/StreamStore';
-import { Mic, Video, MicOff, VideoOff, ChevronDown } from 'lucide-react';
+import { Mic, Video, MicOff, VideoOff, ChevronDown, Copy } from 'lucide-react';
 
 interface StreamComponentProps {
   streamId: string;
   title: string;
+  ticker: string;
+  coinAddress: string;
   isLive: boolean;
 }
 
-const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title, isLive }) => {
+const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title, ticker, coinAddress, isLive }) => {
   // Refs
   const videoRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -76,7 +78,22 @@ const StreamComponent: React.FC<StreamComponentProps> = ({ streamId, title, isLi
   return (
     <div className="w-full bg-gray-800 rounded-lg p-4 mb-8">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-yellow-400">{title}</h2>
+        <div className="flex flex-col md:flex-row md:items-center gap-2">
+            <h2 className="text-2xl font-bold text-yellow-400">{title} | ${ticker}</h2>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(coinAddress);
+                const btn = document.activeElement as HTMLButtonElement;
+                btn?.classList.add('animate-flash');
+                setTimeout(() => btn?.classList.remove('animate-flash'), 200);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 border border-white/10 rounded hover:bg-gray-600 transition-colors group"
+            >
+              <Copy size={14} className="text-gray-400 group-hover:text-white" />
+              <div className="w-px h-4 bg-gray-600"></div>
+              <span className="text-gray-300 font-mono text-sm">{coinAddress}</span>
+            </button>
+          </div>
         <div className="flex gap-2">
           {!isLive && (
             <button 

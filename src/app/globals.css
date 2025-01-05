@@ -28,3 +28,13 @@
 .animate-scroll {
   animation: scroll 20s linear infinite;
 }
+
+@keyframes flash {
+  0% { background-color: transparent; }
+  50% { background-color: rgba(255, 255, 255, 0.1); }
+  100% { background-color: transparent; }
+}
+
+.animate-flash {
+  animation: flash 200ms ease-out;
+}
