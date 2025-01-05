@@ -32,6 +32,7 @@ const StreamContainer: React.FC<StreamContainerProps> = ({
             streamId={stream.id} 
             title={stream.title} 
             ticker={stream.ticker}
+            coinAddress={stream.coinAddress}
           />
         )}
       </div>
