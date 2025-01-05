@@ -82,7 +82,7 @@ export default function SolstreamUI() {
             </button>
           </div>
           
-          <div className="bg-yellow-400 text-black px-8 py-2 rounded-lg overflow-hidden flex-1 mx-8">
+          <div className="hidden md:block bg-yellow-400 text-black px-8 py-2 rounded-lg overflow-hidden flex-1 mx-8">
             <div className="flex space-x-8 animate-scroll">
               {mockActivity.map((activity, index) => (
                 <span key={index} className="whitespace-nowrap">{activity}</span>
