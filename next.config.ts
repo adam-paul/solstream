@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next'
+import withPWA from 'next-pwa'
 
 const nextConfig: NextConfig = {
   images: {
@@ -7,4 +8,10 @@ const nextConfig: NextConfig = {
   trailingSlash: true,
 }
 
-export default nextConfig
+const config = withPWA({
+  dest: 'public',
+  register: true,
+  skipWaiting: true,
+})(nextConfig)
+
+export default config
