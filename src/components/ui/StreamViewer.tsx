@@ -33,10 +33,10 @@ const StreamViewer: React.FC<StreamViewerProps> = ({ streamId, title, ticker, co
   }, [streamId]);
 
   return (
-    <div className="w-full bg-gray-800 rounded-lg p-4 mb-8 overflow-hidden">
+    <div className="w-full bg-gray-800 rounded-lg mb-8 overflow-hidden">
       <div className="p-4 border-b border-gray-700">
         <div className="flex flex-col md:flex-row md:items-center gap-2">
-          <h2 className="text-2xl font-bold text-yellow-400">{title} | ${ticker}</h2>
+          <h2 className="text-xl font-bold text-white">{title} | ${ticker}</h2>
           <button
             onClick={() => {
               navigator.clipboard.writeText(coinAddress);
